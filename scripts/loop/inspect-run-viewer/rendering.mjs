@@ -146,6 +146,7 @@ export function renderInspectRunViewerHtml({
       .current-pr-state-badge-row { margin-top: 0; }
       .current-pr-state-controls { position: absolute; right: 1.3rem; bottom: 1.2rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem 0.6rem; max-width: calc(100% - 2.6rem); }
       .current-pr-state-auto-reload-label { display: inline-flex; align-items: center; gap: 0.32rem; margin: 0; font-size: 0.78rem; font-weight: 700; color: #486174; }
+      .current-pr-state-auto-reload-label .auto-reload-icon { font-size: 1.15em; line-height: 1; }
       .current-pr-state-auto-reload-select { min-width: 7.4rem; border: 1px solid #bfd0e2; border-radius: 0.5rem; padding: 0.4rem 0.55rem; font: inherit; font-size: 0.83rem; line-height: 1.35; color: #355061; background: #fff; }
       .current-pr-state-reload { flex: 0 0 auto; }
       .current-pr-state-reload[hidden] { display: none; }

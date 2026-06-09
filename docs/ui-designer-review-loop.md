@@ -1,6 +1,6 @@
 # Designer + vision review loop for UI slices
 
-This document defines the bounded designer-persona review loop introduced for issue #122 under umbrella issue #97.
+This document defines the bounded designer-persona review loop.
 
 ## Public entrypoint and dependency boundary
 
@@ -45,55 +45,32 @@ If any required part of this bundle is missing, incomplete, or ambiguous, the lo
 Two bounded reviewer modes are supported for opted-in UI slices:
 
 - `designer` (default): prompt-driven designer-persona review against the same artifact bundle.
-- `vision`: screenshot-first review using the reusable prompt template at `skills/dev-loop/templates/ui-vision-review.md` (model target: `gpt-5.4`).
+- `vision`: screenshot-first review using the reusable prompt template at `skills/dev-loop/templates/ui-vision-review.md`.
 
 Both modes must return the same structured outcome set and follow the same fail-closed input contract.
 
 ## Required output bundle
 
-Every review pass (designer or vision) must produce a bounded structured result with:
-- **Findings**
-  - what is visually or interaction-wise wrong or unclear
-  - which named state it affects
-  - the evidence path(s) that support the finding
-- **Corrective actions**
-  - what should be changed next
-- **Next-iteration focus areas**
-  - the small set of UI items the fixer/developer should prioritize next
-- **Outcome**
-  - exactly one of:
-    - `continue_ui_fix_loop`
-    - `ui_review_satisfied`
-    - `blocked_needs_human_decision`
+Every review pass (designer or vision) must produce a bounded structured result. The canonical output format (outcome enum, severity enum, JSON schema, finding shape) is defined in [UI Vision Review Template](../skills/dev-loop/templates/ui-vision-review.md).
+
+This loop adds one designer-specific field beyond the canonical schema:
+- **Corrective actions**: what should be changed next in the fix iteration
 
 ## Outcome semantics
 
+The canonical outcome enum is defined in [UI Vision Review Template](../skills/dev-loop/templates/ui-vision-review.md). The loop's behavior per outcome:
+
 ### `continue_ui_fix_loop`
 
-Use this when findings remain and a normal UI fix iteration should continue.
-
-The handoff goes back to the fixer/developer with:
-- the findings
-- the corrective actions
-- the next-iteration focus areas
-- the same acceptance criteria and artifact contract for the next pass
+The handoff goes back to the fixer/developer with findings, corrective actions, next-iteration focus areas, and the same acceptance criteria and artifact contract for the next pass.
 
 ### `ui_review_satisfied`
 
-Use this when:
-- the named states in scope satisfy the review brief and acceptance criteria closely enough to stop iterating on the UI/design side
-- any remaining issues are minor enough that they do not justify another dedicated UI-fix pass
-
-This does **not** replace normal engineering validation; it only means the designer-persona review loop is satisfied.
+The named states in scope satisfy the review brief and acceptance criteria closely enough to stop iterating on the UI/design side. This does **not** replace normal engineering validation; it only means the designer-persona review loop is satisfied.
 
 ### `blocked_needs_human_decision`
 
-Use this when the loop finds a genuine design/product decision that cannot be resolved by another normal UI-fix iteration alone.
-
-Examples:
-- conflicting acceptance cues
-- a tradeoff that requires a product or design decision
-- artifacts that expose a scope contradiction rather than a normal implementation defect
+The loop found a genuine design/product decision that cannot be resolved by another normal UI-fix iteration alone — conflicting acceptance cues, a tradeoff requiring a product/design decision, or artifacts exposing a scope contradiction.
 
 ## Fail-closed behavior
 

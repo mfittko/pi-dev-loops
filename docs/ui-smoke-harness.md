@@ -1,6 +1,6 @@
 # Local Playwright/WebKit smoke harness for UI slices
 
-This document defines the minimal reusable local smoke harness/template introduced for issue #124 under umbrella issue #97.
+This document defines the minimal reusable local smoke harness/template.
 
 ## Purpose
 

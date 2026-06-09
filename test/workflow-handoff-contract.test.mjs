@@ -31,7 +31,7 @@ test("workflow-handoff-contract documents three authoritative sources", async ()
   assert.match(content, /Resolver output/i);
   assert.match(content, /resolve-dev-loop-startup/);
   assert.match(content, /Settings/i);
-  assert.match(content, /settings\.yaml/);
+  assert.match(content, /\.devloops/);
   assert.match(content, /Gate state/i);
 });
 
