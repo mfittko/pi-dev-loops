@@ -15,30 +15,33 @@ import { loadDevLoopConfig, resolveRefinementConfig } from "@pi-dev-loops/core/c
 const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
+const NO_CHANGES_SINCE_LAST_REVIEW_STATUS = "no_changes_since_last_review";
 const SUPPRESSED_DRAFT_STATUS = "suppressed_draft";
-const REMOVED_FLAGS = new Set([
-  "--force-rerequest-review",
-]);
 const USAGE = `Usage: request-copilot-review.mjs --repo <owner/name> --pr <number>
 Request Copilot as a reviewer on a GitHub pull request.
 Required:
   --repo <owner/name>   Repository slug (e.g. owner/repo)
   --pr <number>         Pull request number
+Optional:
+  --force-rerequest-review  Bypass the round cap when new commits exist since
+                            the last Copilot review. Refused when the PR head
+                            has not changed since the last review.
 Debug:
   PI_DEV_LOOPS_DEBUG=1      Emit stderr traces when best-effort same-head clean
                             convergence detection falls back to unsuppressed behavior
 Output (stdout, JSON):
-  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached"|"suppressed_draft",
+  { "ok": true, "status": "requested"|"already-requested"|"unavailable"|"suppressed_same_head_clean"|"blocked_by_copilot_comment"|"round_cap_reached"|"no_changes_since_last_review"|"suppressed_draft",
     "repo": "...", "pr": N, "reviewer": "Copilot", "detail"?: "...",
     "sameHeadCleanConverged"?: true, "violationCommentIds"?: [N], "completedRounds"?: N, "maxRounds"?: N }
 Request statuses:
-  requested           Copilot review was successfully requested
-  already-requested   Copilot review was already observably in progress; no new request needed
-  unavailable         Copilot review is not enabled/requestable and no in-progress evidence was found
-  suppressed_same_head_clean  Current head is already clean-converged; no new request is made
-  blocked_by_copilot_comment  A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
-  round_cap_reached    Maximum Copilot review rounds reached; no further re-requests will be made
-  suppressed_draft     PR is in draft state; review requests are blocked until the PR is marked ready for review
+  requested                     Copilot review was successfully requested
+  already-requested             Copilot review was already observably in progress; no new request needed
+  unavailable                   Copilot review is not enabled/requestable and no in-progress evidence was found
+  suppressed_same_head_clean    Current head is already clean-converged; no new request is made
+  blocked_by_copilot_comment    A non-Copilot PR comment contains @copilot or /copilot; delete the comment(s) first
+  round_cap_reached             Maximum Copilot review rounds reached; no further re-requests will be made
+  no_changes_since_last_review  --force-rerequest-review used but PR head has not changed since the last review
+  suppressed_draft              PR is in draft state; review requests are blocked until the PR is marked ready for review
 Error output (stderr, JSON):
   Argument/usage errors:
     { "ok": false, "error": "...", "usage": "..." }
@@ -48,17 +51,13 @@ Exit codes:
   0  Success (including unavailable)
   1  Argument error or gh failure`.trim();
 const parseError = buildParseError(USAGE);
-function rejectRemovedFlag(token) {
-  throw parseError(
-    `${token} has been removed. Copilot re-requests are managed internally. Omit the flag.`,
-  );
-}
 export function parseRequestCliArgs(argv) {
   const args = [...argv];
   const options = {
     help: false,
     repo: undefined,
     pr: undefined,
+    forceRerequestReview: false,
   };
   while (args.length > 0) {
     const token = args.shift();
@@ -66,8 +65,9 @@ export function parseRequestCliArgs(argv) {
       options.help = true;
       return options;
     }
-    if (REMOVED_FLAGS.has(token)) {
-      rejectRemovedFlag(token);
+    if (token === "--force-rerequest-review") {
+      options.forceRerequestReview = true;
+      continue;
     }
     if (token === "--repo") {
       options.repo = requireOptionValue(args, "--repo", parseError).trim();
@@ -201,6 +201,42 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     }
     return false;
   }
+}
+function getLastCopilotReviewHeadSha(prData) {
+  const reviews = Array.isArray(prData?.reviews) ? prData.reviews : [];
+  // Only consider submitted (non-PENDING) Copilot reviews.
+  // A PENDING review on a stale head could be selected as "most recent"
+  // and cause incorrect round-cap bypass decisions.
+  const copilotReviews = reviews.filter(
+    (r) => r?.state !== "PENDING" && isCopilotLogin(r?.author?.login),
+  );
+  if (copilotReviews.length === 0) return null;
+  // Select the most recent Copilot review: sort by submittedAt descending,
+  // falling back to original array position when timestamps are missing
+  // (later index = more recent).
+  const indexed = copilotReviews.map((r, i) => ({ review: r, index: i }));
+  indexed.sort((a, b) => {
+    const parseTs = (r) => {
+      if (typeof r?.submittedAt === "string") {
+        const v = Date.parse(r.submittedAt);
+        if (!Number.isNaN(v)) return v;
+      }
+      if (typeof r?.submitted_at === "string") {
+        const v = Date.parse(r.submitted_at);
+        if (!Number.isNaN(v)) return v;
+      }
+      return NaN;
+    };
+    const aTs = parseTs(a.review);
+    const bTs = parseTs(b.review);
+    if (!Number.isNaN(aTs) && !Number.isNaN(bTs)) return bTs - aTs;
+    if (Number.isNaN(aTs) && Number.isNaN(bTs)) return b.index - a.index;
+    return Number.isNaN(aTs) ? 1 : -1;
+  });
+  const lastReview = indexed[0].review;
+  // Tolerate both GraphQL commit.oid and REST commit_id shapes
+  const sha = lastReview?.commit?.oid ?? lastReview?.commit_id;
+  return typeof sha === "string" && sha.trim().length > 0 ? sha.trim() : null;
 }
 function classifyRequestFailure(detail) {
   const normalized = detail.toLowerCase();
@@ -340,17 +376,53 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
     }
   } catch {
   }
-  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds) {
-    return {
-      ok: true,
-      status: ROUND_CAP_REACHED_STATUS,
-      repo: options.repo,
-      pr: options.pr,
-      reviewer: "Copilot",
-      completedRounds: before.completedCopilotReviewRounds,
-      maxRounds,
-      detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
-    };
+  if ((before.completedCopilotReviewRounds ?? 0) >= maxRounds
+      && !before.requested
+      && !before.hasPendingReviewOnCurrentHead) {
+    if (!options.forceRerequestReview) {
+      return {
+        ok: true,
+        status: ROUND_CAP_REACHED_STATUS,
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+        completedRounds: before.completedCopilotReviewRounds,
+        maxRounds,
+        detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
+      };
+    }
+    // --force-rerequest-review: only bypass when there are new commits since the last review
+    const currentHeadSha = typeof before.prData?.headRefOid === "string" && before.prData.headRefOid.trim().length > 0
+      ? before.prData.headRefOid.trim()
+      : null;
+    const lastReviewSha = getLastCopilotReviewHeadSha(before.prData);
+    const canCompare = currentHeadSha !== null && lastReviewSha !== null;
+    const hasNewCommits = canCompare && currentHeadSha !== lastReviewSha;
+    if (!canCompare) {
+      return {
+        ok: true,
+        status: ROUND_CAP_REACHED_STATUS,
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+        detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. --force-rerequest-review was supplied but commit SHA data is unavailable, so change-since-last-review could not be evaluated.`,
+        completedRounds: before.completedCopilotReviewRounds,
+        maxRounds,
+      };
+    }
+    if (!hasNewCommits) {
+      return {
+        ok: true,
+        status: NO_CHANGES_SINCE_LAST_REVIEW_STATUS,
+        repo: options.repo,
+        pr: options.pr,
+        reviewer: "Copilot",
+        detail: "No changes since last Copilot review. --force-rerequest-review requires new commits on the PR head.",
+        completedRounds: before.completedCopilotReviewRounds,
+        maxRounds,
+      };
+    }
+    // Has new commits — bypass the round cap and proceed with the request
   }
   const sameHeadCleanConverged = await detectSameHeadCleanConvergence(
     options,
