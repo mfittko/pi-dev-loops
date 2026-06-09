@@ -168,6 +168,19 @@ test('status reports conflict_unmanaged_listener when no managed record exists b
   assert.equal(status.url, 'http://127.0.0.1:4311');
 });
 
+test('restart reclaims unmanaged listeners when no managed record exists', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-restart-unmanaged-only-'));
+  const { manager, listenersByPort, processes, stopped, launches } = createManager();
+  listenersByPort.set(4311, [9001]);
+  processes.set(9001, { alive: true, healthy: true, port: 4311, url: 'http://127.0.0.1:4311' });
+
+  const restarted = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
+  assert.equal(restarted.state, 'running');
+  assert.match(restarted.detail, /restarted the managed inspect-run viewer/i);
+  assert.deepEqual(stopped, [9001]);
+  assert.equal(launches.length, 1);
+});
+
 test('open reuses a matching live managed instance instead of relaunching', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-reuse-'));
   const { manager, launches, browserOpens } = createManager();
@@ -241,7 +254,7 @@ test('restart keeps the managed record when a running viewer ignores SIGTERM', a
   assert.equal(record.pid, currentPid());
 });
 
-test('restart only replaces managed ownership and fails closed on an unknown listener conflict', async () => {
+test('restart reclaims an unmanaged listener conflict before relaunching', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-restart-'));
   const { manager, listenersByPort, processes, stopped, launches } = createManager();
 
@@ -253,11 +266,10 @@ test('restart only replaces managed ownership and fails closed on an unknown lis
   processes.set(9111, { alive: true, healthy: true, port: 4311, url: 'http://127.0.0.1:4311' });
 
   const restarted = await manager.restart({ repoRoot, repo: 'mfittko/pi-dev-loops' });
-  assert.equal(restarted.state, 'conflict_unmanaged_listener');
-  assert.match(restarted.detail, /port 4311 is occupied/i);
-  assert.doesNotMatch(restarted.detail, /restarted the managed inspect-run viewer/i);
-  assert.deepEqual(stopped, []);
-  assert.equal(launches.length, 1);
+  assert.equal(restarted.state, 'running');
+  assert.match(restarted.detail, /restarted the managed inspect-run viewer/i);
+  assert.deepEqual(stopped, [9111]);
+  assert.equal(launches.length, 2);
 });
 
 test('open recovers from a stale record by replacing it with a fresh managed instance', async () => {
@@ -343,14 +355,21 @@ test('stop fails closed with explicit guidance when --repo does not match the ma
   assert.equal(launches.length, 1);
 });
 
-test('open does not attempt to auto-open a browser for conflict_unmanaged_listener results', async () => {
+test('open does not attempt to auto-open a browser when an unmanaged listener ignores SIGTERM', async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'inspect-run-viewer-open-conflict-'));
-  const { manager, listenersByPort, processes, browserOpens } = createManager();
+  let stopCalls = 0;
+  const { manager, listenersByPort, processes, browserOpens } = createManager({
+    async stopManagedProcessImpl() {
+      stopCalls += 1;
+    },
+  });
   listenersByPort.set(4311, [9555]);
   processes.set(9555, { alive: true, healthy: true, port: 4311, url: 'http://127.0.0.1:4311' });
 
   const result = await manager.open({ repoRoot });
   assert.equal(result.state, 'conflict_unmanaged_listener');
+  assert.match(result.detail, /did not stop after SIGTERM/i);
+  assert.equal(stopCalls, 1);
   assert.deepEqual(browserOpens, []);
 });
 
