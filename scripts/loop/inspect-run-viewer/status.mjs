@@ -534,7 +534,7 @@ function summarizeCurrentPrMode(snapshot) {
   return null;
 }
 
-export function renderCurrentStateBanner(snapshot, target, stateLabel, graph, selectedTitle = null) {
+export function renderCurrentStateBanner(snapshot, target, stateLabel, _graph, selectedTitle = null) {
   const summary = summarizeCurrentPrStatus(snapshot);
   const pullRequestHref = buildPullRequestHref(target);
   const mode = summarizeCurrentPrMode(snapshot);
@@ -544,7 +544,6 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, graph, se
   const targetLabel = target?.repo && target?.pr !== null && target?.pr !== undefined
     ? `${target.repo}#${target.pr}`
     : `PR #${target?.pr ?? "unknown"}`;
-  void graph;
 
   const metaLine = [
     snapshot?.runId ? `run ${escapeHtml(snapshot.runId)}` : null,

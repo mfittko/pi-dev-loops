@@ -11,7 +11,7 @@ import {
   renderStateVisualizationSection,
   resetMermaidBrowserScriptCache,
 } from "./graph.mjs";
-import { buildSnapshotHref, renderInboxShellScript, renderInboxSidebar } from "./inbox.mjs";
+import { renderInboxShellScript, renderInboxSidebar } from "./inbox.mjs";
 import {
   deriveInboxSignalFromSnapshot,
   renderCopilotLayerSection,
@@ -65,7 +65,6 @@ export function renderInspectRunViewerHtml({
   const title = target
     ? `${target.repo}#${target.pr} inspection snapshot`
     : `${scopeLabel} PR inspection dashboard`;
-  const rawSnapshotHref = buildSnapshotHref(target, scopeFilter);
 
   return `<!doctype html>
 <html lang="en">
@@ -312,13 +311,13 @@ export function renderInspectRunViewerHtml({
           : `${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
             <div class="viewer-tab-shell" role="tablist" aria-label="Inspect run viewer tabs">
               <div class="viewer-tabs">
-                <button id="tab-btn-graph" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-graph" data-tab="graph" onclick="switchTab('graph')">Graph</button>
-                <button id="tab-btn-overview" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-overview" data-tab="overview" onclick="switchTab('overview')">Overview</button>
-                <button id="tab-btn-layers" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-layers" data-tab="layers" onclick="switchTab('layers')">Layers</button>
-                <button id="tab-btn-handoff" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-handoff" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
+                <button id="tab-btn-graph" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-graph" tabindex="0" data-tab="graph" onclick="switchTab('graph')">Graph</button>
+                <button id="tab-btn-overview" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-overview" tabindex="-1" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+                <button id="tab-btn-layers" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-layers" tabindex="-1" data-tab="layers" onclick="switchTab('layers')">Layers</button>
+                <button id="tab-btn-handoff" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-handoff" tabindex="-1" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
               </div>
             </div>
-            <div class="tab-content active" id="tab-graph">
+            <div class="tab-content active" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">
               <section class="viewer-tab-section" aria-label="Graph">
                 <article class="handoff-card handoff-card-emphasis viewer-card">
                   <p class="handoff-card-kicker">Graph</p>
@@ -332,10 +331,10 @@ export function renderInspectRunViewerHtml({
                 </article>
               </section>
             </div>
-            <div class="tab-content" id="tab-overview">
+            <div class="tab-content" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">
               ${renderOverviewSection(normalizedSnapshot, target, stateLabel)}
             </div>
-            <div class="tab-content" id="tab-layers">
+            <div class="tab-content" id="tab-layers" role="tabpanel" aria-labelledby="tab-btn-layers">
               <section class="viewer-tab-section" aria-label="Layers">
                 <div class="viewer-card-grid viewer-card-grid-layers">
                   ${renderOuterLoopSummarySection(normalizedSnapshot)}
@@ -345,7 +344,7 @@ export function renderInspectRunViewerHtml({
                 </div>
               </section>
             </div>
-            <div class="tab-content" id="tab-handoff">
+            <div class="tab-content" id="tab-handoff" role="tabpanel" aria-labelledby="tab-btn-handoff">
               ${renderHandoffEnvelopeSection(handoffEnvelope)}
             </div>`}
       </main>
