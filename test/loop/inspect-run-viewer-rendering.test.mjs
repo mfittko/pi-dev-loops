@@ -106,6 +106,27 @@ test("renderInspectRunViewerHtml hides pagination controls in the collapsed side
   assert.match(html, /\.assigned-pr-inbox\[data-sidebar-collapsed="true"\] \.assigned-pr-pagination \{ display: none; \}/);
 });
 
+test("renderInspectRunViewerHtml keeps overview first and tab buttons aligned with tab panels", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.match(html, /<button id="tab-btn-overview" class="viewer-tab active"[^>]*aria-controls="tab-overview"[^>]*>Overview<\/button>\s*<button id="tab-btn-graph" class="viewer-tab"[^>]*aria-controls="tab-graph"[^>]*>Graph<\/button>\s*<button id="tab-btn-layers" class="viewer-tab"[^>]*aria-controls="tab-layers"[^>]*>Layers<\/button>\s*<button id="tab-btn-handoff" class="viewer-tab"[^>]*aria-controls="tab-handoff"[^>]*>Agent handoff<\/button>/);
+  assert.match(html, /<div class="tab-content active" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">/);
+  assert.match(html, /<div class="tab-content" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">/);
+  assert.match(html, /document\.dispatchEvent\(new CustomEvent\('inspect-run-viewer:tabchange', \{ detail: \{ tabName \} \}\)\);/);
+  assert.match(html, /document\.addEventListener\("inspect-run-viewer:tabchange", \(\) => \{/);
+});
+
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",
@@ -165,38 +186,39 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /aria-label="Next page"/);
   assert.doesNotMatch(html, /assigned-pr-title-indicator/);
   assert.match(html, /pr=77/);
-  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">owner\/repo#55<\/a>/);
   assert.match(html, /<h1>Selected PR<\/h1>/);
   assert.match(html, /aria-label="PR #55"/);
+  assert.match(html, /<div class="current-pr-state-copy-flow">/);
+  assert.match(html, /class="viewer-card-body"/);
   assert.match(html, /title="Waiting state"/);
   assert.match(html, /⏳/);
   assert.match(html, /Waiting for Copilot review/);
   assert.match(html, /Copilot review has been requested and the PR is waiting for new review activity/);
-  assert.match(html, /These fields are shown directly from the loaded inspection snapshot/i);
   assert.match(html, /status class/);
   assert.match(html, /outer state/);
-  assert.match(html, /outerAction \(compatibility\)/);
-  assert.match(html, /current Copilot state/);
-  assert.match(html, /current reviewer state/);
+  assert.match(html, /outerAction/);
+  assert.match(html, /Copilot state/);
+  assert.match(html, /reviewer state/);
   assert.match(html, /reviewer verdict/);
-  assert.match(html, /next action/);
+  assert.match(html, /Next action and key metrics/);
   assert.match(html, /Graph guide and lane details/);
-  assert.match(html, /Details/);
-  assert.match(html, /target\.repo/);
-  assert.match(html, /owner\/repo/);
-  assert.match(html, /target\.pr/);
-  assert.match(html, /55/);
-  assert.match(html, /runId/);
+  assert.match(html, /data-tab="graph"/);
+  assert.match(html, /data-tab="overview"/);
+  assert.match(html, /data-tab="layers"/);
+  assert.match(html, /data-tab="handoff"/);
+  assert.match(html, /Graph<\/button>/);
+  assert.match(html, /Overview<\/button>/);
+  assert.match(html, /Layers<\/button>/);
+  assert.doesNotMatch(html, /Live view/);
+  assert.match(html, /owner\/repo#55/);
   assert.match(html, /pr-55/);
-  assert.match(html, /inspectedAt/);
   assert.match(html, /activeStateFamily/);
   assert.match(html, /outerAction/);
   assert.match(html, /activeFamilyState/);
   assert.match(html, /statusClass/);
   assert.match(html, /needsAttention/);
   assert.match(html, /sourceMode/);
-  assert.match(html, /trust/);
-  assert.match(html, /evidence\.summary/);
   assert.match(html, /markers\.missing/);
   assert.match(html, /markers\.stale/);
   assert.match(html, /markers\.conflicts/);
@@ -212,6 +234,9 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /const \[firstRect, \.\.\.remainingRects\] = targetRects;/);
   assert.match(html, /cursor: grab/);
   assert.match(html, /data-dragging="true"/);
+  assert.match(html, /\.viewer-card-body,/);
+  assert.match(html, /\.current-pr-state-copy-flow \{ display: grid; gap: 0\.7rem; min-width: 0; \}/);
+  assert.match(html, /pre \{ margin: 0; padding: 0\.95rem 1rem;/);
   assert.match(html, /assets\/mermaid\.min\.js/);
   assert.match(html, /Start/);
   assert.match(html, /End/);
@@ -223,15 +248,13 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
   assert.ok(html.indexOf('class="mermaid-state-graph mermaid"') < html.indexOf('class="state-graph-cues"'));
   assert.match(html, /outer lane comes from the shared authoritative outer-loop graph contract/);
-  assert.match(html, /outer-loop summary/);
+  assert.match(html, /Outer-loop/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);
   assert.match(html, /fix commits: 3/);
-  assert.match(html, /copilot layer/);
-  assert.match(html, /reviewer layer/);
-  assert.match(html, /steering summary/);
-  assert.match(html, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
-  assert.match(html, /manual reload only/i);
+  assert.match(html, /Copilot/);
+  assert.match(html, /Reviewer/);
+  assert.match(html, /Steering/);
   assert.doesNotMatch(html, /Connected state map/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
   assert.doesNotMatch(html, /"ok": true/);
@@ -353,9 +376,9 @@ test("renderInspectRunViewerHtml does not headline waiting_for_ci when reviewer 
     ],
   });
 
-  assert.match(html, /<p class="current-pr-state-summary-headline">Reviewer loop active<\/p>/);
+  assert.match(html, /<p class="current-pr-state-summary-headline"><strong>Reviewer loop active<\/strong><\/p>/);
   assert.match(html, /<span class="assigned-pr-headline">Reviewer loop active<\/span>/);
-  assert.doesNotMatch(html, /<p class="current-pr-state-summary-headline">Waiting for CI<\/p>/);
+  assert.doesNotMatch(html, /<p class="current-pr-state-summary-headline"><strong>Waiting for CI<\/strong><\/p>/);
   assert.doesNotMatch(html, /<span class="assigned-pr-headline">Waiting for CI<\/span>/);
 });
 
@@ -500,7 +523,6 @@ test("renderInspectRunViewerHtml renders checkpoint-only \/ degraded cues and ab
   assert.doesNotMatch(html, /checkpoint-only graph view[\s\S]*current and next highlights are advisory until live inspection is available\./i);
   assert.match(html, /Needs attention/);
   assert.match(html, /The current snapshot is not authoritative enough to collapse to one trusted outer state/);
-  assert.match(html, /This is a checkpoint-only snapshot\. The current-state fields below are advisory, not live-confirmed\./i);
   assert.match(html, /class="mermaid-state-graph mermaid"/);
   assert.match(html, /current state unavailable/);
   assert.match(html, /not present \/ unavailable/);
@@ -558,7 +580,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
-  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">owner\/repo#55<\/a>/);
   assert.match(html, /PR complete/);
   assert.match(html, /The current inspection says this PR is in a terminal done state/);
   assert.match(html, /status class[\s\S]*<code>done<\/code>/);
@@ -806,9 +828,8 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
     }),
   });
 
-  assert.match(html, /Snapshot state:[\s\S]*conflicting/);
+  assert.match(html, /handoff-badge-danger">conflicting<\/span>/);
   assert.doesNotMatch(html, /Conflicting graph view[\s\S]*resolve the evidence conflict before trusting the highlights\./i);
-  assert.match(html, /Conflicting evidence is present\. Treat the current-state fields below as advisory until the snapshot is reconciled\./i);
   assert.match(html, /checkpoint outerAction/);
 });
 
@@ -823,8 +844,7 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /Snapshot unavailable/);
   assert.match(html, /target\.pr must be a positive integer/);
   assert.match(html, /no state graph can be rendered yet/i);
-  assert.match(html, /manual reload only/i);
-  assert.match(html, /href="\/snapshot\.json\?repo=bad(?:\+|%20)target&amp;pr=x"/);
+  assert.match(html, /Use the Reload snapshot control to refresh/i);
 });
 
 
@@ -860,7 +880,7 @@ test("renderInspectRunViewerHtml includes deterministic Mermaid asset fallback m
     snapshot: makeSnapshot(),
   });
 
-  assert.match(html, /Mermaid browser asset unavailable\. Use the details below or open \/snapshot\.json\./);
+  assert.match(html, /Graph renderer unavailable\. Use the details below or open \/snapshot\.json\./);
 });
 test("renderInspectRunViewerHtml fail-closes the graph for unavailable snapshots", () => {
   const html = renderInspectRunViewerHtml({

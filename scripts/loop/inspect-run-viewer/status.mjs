@@ -1,56 +1,112 @@
 import { OUTER_STATE } from "@pi-dev-loops/core/loop/conductor-routing";
 
-import { renderStateVisualizationSection } from "./graph.mjs";
 import {
   escapeHtml,
   formatStateToken,
   humanizeStateToken,
-  renderCompactSection,
   titleCaseWords,
 } from "./shared.mjs";
 
-export function renderOuterLoopSummarySection(snapshot) {
-  if (snapshot === null || snapshot === undefined) {
-    return renderCompactSection({ title: "outer-loop summary" });
-  }
+const SNAPSHOT_BADGE_VARIANTS = {
+  authoritative: "success",
+  conflicting: "danger",
+  degraded: "warning",
+  "checkpoint-only": "warning",
+  unavailable: "muted",
+};
 
-  return renderCompactSection({
-    title: "outer-loop summary",
-    entries: [
-      ["activeStateFamily", snapshot.activeStateFamily ?? "not present"],
-      ["outerState", snapshot.outerState ?? "not present"],
-      ["outerAction (compatibility)", snapshot.outerAction ?? "not present"],
-      ["activeFamilyState", snapshot.activeFamilyState ?? "not present"],
-      ["statusClass", snapshot.statusClass ?? "not present"],
-      ["needsAttention", String(snapshot.needsAttention ?? "not present")],
-      ["sourceMode", snapshot.sourceMode ?? "not present"],
-      ["trust", snapshot.trust ?? "not present"],
-      ["evidence.summary", snapshot.evidence?.summary ?? "not present"],
-    ],
-    lists: [
-      { title: "evidence.authoritative", items: snapshot.evidence?.authoritative },
-      { title: "evidence.checkpoint", items: snapshot.evidence?.checkpoint },
-    ],
-  });
+const INBOX_SIGNAL_BADGE_VARIANTS = {
+  attention: "danger",
+  pending: "warning",
+  gate: "info",
+  ready: "success",
+  closed: "muted",
+  unknown: "muted",
+  waiting: "info",
+};
+
+function renderBadge(label, variant = "muted") {
+  return `<span class="handoff-badge handoff-badge-${escapeHtml(variant)}">${escapeHtml(label)}</span>`;
 }
 
-export function renderCopilotLayerSection(layer) {
-  if (layer === null || layer === undefined) {
-    return renderCompactSection({ title: "copilot layer" });
-  }
-
-  return renderCompactSection({
-    title: "copilot layer",
-    entries: [["currentState", layer.currentState ?? "not present"]],
-    lists: [{ title: "allowedTransitions", items: layer.allowedTransitions }],
-  });
+function renderCodeValue(value, fallback = "not present") {
+  return `<code>${escapeHtml(formatStateToken(value, fallback))}</code>`;
 }
 
-export function renderCopilotLoopIterationsSection(snapshot) {
+function renderCard({ kicker, title, body, className = "", dataField = null }) {
+  return `<article class="handoff-card viewer-card${className ? ` ${escapeHtml(className)}` : ""}"${dataField ? ` data-field="${escapeHtml(dataField)}"` : ""}>
+    ${kicker ? `<p class="handoff-card-kicker">${escapeHtml(kicker)}</p>` : ""}
+    ${title ? `<h3>${escapeHtml(title)}</h3>` : ""}
+    <div class="viewer-card-body">${body}</div>
+  </article>`;
+}
+
+function renderCardEmptyState() {
+  return '<p class="handoff-empty-copy">not present / unavailable</p>';
+}
+
+function renderKeyValueRows(entries, { compact = false } = {}) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return renderCardEmptyState();
+  }
+
+  return `<dl class="handoff-kv${compact ? " handoff-kv-compact" : ""}">
+    ${entries.map(([label, value]) => `<div class="handoff-kv-row"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join("")}
+  </dl>`;
+}
+
+function renderStatGrid(stats, { columns = "" } = {}) {
+  const normalizedStats = Array.isArray(stats) ? stats.filter(Boolean) : [];
+  if (normalizedStats.length === 0) {
+    return renderCardEmptyState();
+  }
+
+  return `<div class="handoff-stat-grid viewer-stat-grid${columns ? ` ${escapeHtml(columns)}` : ""}">
+    ${normalizedStats.map(({ label, value }) => `<div class="handoff-stat"><span class="handoff-stat-label">${escapeHtml(label)}</span><span class="handoff-stat-value">${value}</span></div>`).join("")}
+  </div>`;
+}
+
+function renderCardList(items, { emptyText = "none" } = {}) {
+  if (!Array.isArray(items)) {
+    return `<p class="handoff-empty-copy">not present / unavailable</p>`;
+  }
+  if (items.length === 0) {
+    return `<p class="handoff-empty-copy">${escapeHtml(emptyText)}</p>`;
+  }
+
+  return `<ul class="viewer-card-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function renderCardListBlock(title, items, options = {}) {
+  return `<div class="viewer-card-list-block">
+    <h4>${escapeHtml(title)}</h4>
+    ${renderCardList(items, options)}
+  </div>`;
+}
+
+function renderCurrentStateBadge(stateLabel) {
+  return renderBadge(stateLabel, SNAPSHOT_BADGE_VARIANTS[stateLabel] ?? "muted");
+}
+
+function renderInboxSignalBadge(snapshot) {
+  const signal = deriveInboxSignalFromSnapshot(snapshot);
+  return renderBadge(signal.replaceAll("_", " "), INBOX_SIGNAL_BADGE_VARIANTS[signal] ?? "muted");
+}
+
+function renderBooleanBadge(value, { positive = false } = {}) {
+  if (value === true) {
+    return renderBadge("true", positive ? "success" : "danger");
+  }
+  if (value === false) {
+    return renderBadge("false", positive ? "muted" : "success");
+  }
+  return renderBadge("not present", "muted");
+}
+
+function buildCopilotLoopIterationEntries(snapshot) {
   const loopIterations = snapshot?.loopIterations;
-
   if (loopIterations === null || loopIterations === undefined) {
-    return renderCompactSection({ title: "Copilot loop iterations" });
+    return null;
   }
 
   const humanSummary = loopIterations.available
@@ -62,51 +118,164 @@ export function renderCopilotLoopIterationsSection(snapshot) {
     ].join("; ")
     : "not present / unavailable";
 
-  return renderCompactSection({
-    title: "Copilot loop iterations",
-    entries: [
-      ["available", String(loopIterations.available)],
-      ["source", loopIterations.source ?? "not present"],
-      ["reason", loopIterations.reason ?? "not present"],
-      ["completedCopilotReviewRounds", loopIterations.completedCopilotReviewRounds ?? "not present"],
-      ["pendingCopilotReviewRounds", loopIterations.pendingCopilotReviewRounds ?? "not present"],
-      ["copilotReviewRequests", loopIterations.copilotReviewRequests ?? "not present"],
-      ["copilotReviewComments", loopIterations.copilotReviewComments ?? "not present"],
-      ["resolvedReviewThreads", loopIterations.resolvedReviewThreads ?? "not present"],
-      ["unresolvedReviewThreads", loopIterations.unresolvedReviewThreads ?? "not present"],
-      ["fixCommitsAfterFeedback", loopIterations.fixCommitsAfterFeedback ?? "not present"],
-      ["humanSummary", humanSummary],
-    ],
+  return [
+    ["available", escapeHtml(String(loopIterations.available))],
+    ["source", escapeHtml(loopIterations.source ?? "not present")],
+    ["reason", escapeHtml(loopIterations.reason ?? "not present")],
+    ["completedCopilotReviewRounds", escapeHtml(String(loopIterations.completedCopilotReviewRounds ?? "not present"))],
+    ["pendingCopilotReviewRounds", escapeHtml(String(loopIterations.pendingCopilotReviewRounds ?? "not present"))],
+    ["copilotReviewRequests", escapeHtml(String(loopIterations.copilotReviewRequests ?? "not present"))],
+    ["copilotReviewComments", escapeHtml(String(loopIterations.copilotReviewComments ?? "not present"))],
+    ["resolvedReviewThreads", escapeHtml(String(loopIterations.resolvedReviewThreads ?? "not present"))],
+    ["unresolvedReviewThreads", escapeHtml(String(loopIterations.unresolvedReviewThreads ?? "not present"))],
+    ["fixCommitsAfterFeedback", escapeHtml(String(loopIterations.fixCommitsAfterFeedback ?? "not present"))],
+    ["humanSummary", escapeHtml(humanSummary)],
+  ];
+}
+
+export function renderOverviewSection(snapshot) {
+  const summary = summarizeCurrentPrStatus(snapshot);
+  const loopIterations = snapshot?.loopIterations;
+
+  const stateBody = `${renderStatGrid([
+    { label: "status class", value: renderCodeValue(snapshot?.statusClass) },
+    { label: "outer state", value: renderCodeValue(snapshot?.outerState) },
+    { label: "outerAction", value: renderCodeValue(snapshot?.outerAction) },
+    { label: "Copilot state", value: renderCodeValue(snapshot?.layers?.copilot?.currentState) },
+    { label: "reviewer state", value: renderCodeValue(snapshot?.layers?.reviewer?.currentState) },
+    { label: "reviewer verdict", value: escapeHtml(renderReviewerVerdict(snapshot)) },
+    { label: "needs attention", value: renderBooleanBadge(snapshot?.needsAttention) },
+    { label: "sourceMode", value: escapeHtml(formatStateToken(snapshot?.sourceMode)) },
+  ], { columns: "viewer-stat-grid-2" })}`;
+
+  const metricsBody = `<div class="handoff-next-action viewer-next-action">
+    <p><strong>${escapeHtml(summary.headline)}.</strong> ${escapeHtml(summary.nextAction)}</p>
+  </div>
+  ${loopIterations
+    ? renderStatGrid([
+      { label: "completed rounds", value: escapeHtml(String(loopIterations.completedCopilotReviewRounds ?? "not present")) },
+      { label: "pending rounds", value: escapeHtml(String(loopIterations.pendingCopilotReviewRounds ?? "not present")) },
+      { label: "Copilot comments", value: escapeHtml(String(loopIterations.copilotReviewComments ?? "not present")) },
+      { label: "unresolved threads", value: escapeHtml(String(loopIterations.unresolvedReviewThreads ?? "not present")) },
+      { label: "resolved threads", value: escapeHtml(String(loopIterations.resolvedReviewThreads ?? "not present")) },
+      { label: "fix commits", value: escapeHtml(String(loopIterations.fixCommitsAfterFeedback ?? "not present")) },
+    ], { columns: "viewer-stat-grid-3" })
+    : renderCardEmptyState()}
+  <div class="viewer-card-list-grid">
+    ${renderCardListBlock("markers.missing", snapshot?.markers?.missing)}
+    ${renderCardListBlock("markers.stale", snapshot?.markers?.stale)}
+    ${renderCardListBlock("markers.conflicts", snapshot?.markers?.conflicts)}
+  </div>`;
+
+  return `<section class="viewer-tab-section" aria-label="Overview">
+    <div class="viewer-card-grid viewer-card-grid-overview">
+      ${renderCard({ kicker: "Overview", title: "Current state", body: stateBody, className: "handoff-card-tight handoff-card-emphasis", dataField: "overview-state" })}
+      ${renderCard({ kicker: "Overview", title: "Next action and key metrics", body: metricsBody, className: "handoff-card-tight", dataField: "overview-metrics" })}
+    </div>
+  </section>`;
+}
+
+export function renderOuterLoopSummarySection(snapshot) {
+  if (snapshot === null || snapshot === undefined) {
+    return renderCard({ kicker: "Layers", title: "Outer-loop", body: renderCardEmptyState(), className: "handoff-card-tight", dataField: "outer-loop-summary" });
+  }
+
+  return renderCard({
+    kicker: "Layers",
+    title: "Outer-loop",
+    className: "handoff-card-tight",
+    dataField: "outer-loop-summary",
+    body: `${renderStatGrid([
+      { label: "activeStateFamily", value: escapeHtml(snapshot.activeStateFamily ?? "not present") },
+      { label: "outerState", value: renderCodeValue(snapshot.outerState) },
+      { label: "outerAction (compatibility)", value: renderCodeValue(snapshot.outerAction) },
+      { label: "activeFamilyState", value: escapeHtml(snapshot.activeFamilyState ?? "not present") },
+      { label: "statusClass", value: escapeHtml(snapshot.statusClass ?? "not present") },
+      { label: "needsAttention", value: renderBooleanBadge(snapshot.needsAttention) },
+      { label: "sourceMode", value: escapeHtml(snapshot.sourceMode ?? "not present") },
+      { label: "trust", value: escapeHtml(snapshot.trust ?? "not present") },
+      { label: "evidence.summary", value: escapeHtml(snapshot.evidence?.summary ?? "not present") },
+    ], { columns: "viewer-stat-grid-3" })}
+    <div class="viewer-card-list-grid">
+      ${renderCardListBlock("evidence.authoritative", snapshot.evidence?.authoritative)}
+      ${renderCardListBlock("evidence.checkpoint", snapshot.evidence?.checkpoint)}
+    </div>`,
   });
 }
 
-export function renderReviewerLayerSection(layer) {
+export function renderCopilotLayerSection(layer, snapshot = null) {
+  
+  const loopIterationEntries = buildCopilotLoopIterationEntries(snapshot);
+
   if (layer === null || layer === undefined) {
-    return renderCompactSection({ title: "reviewer layer" });
+    return renderCard({
+      kicker: "Layers",
+      title: "Copilot",
+      className: "handoff-card-tight",
+      dataField: "copilot-layer",
+      body: `${renderCardEmptyState()}
+    <div class="viewer-card-subsection">
+      <h4>Copilot loop iterations</h4>
+      ${loopIterationEntries ? renderKeyValueRows(loopIterationEntries, { compact: true }) : renderCardEmptyState()}
+    </div>`,
+    });
   }
 
-  return renderCompactSection({
-    title: "reviewer layer",
-    entries: [
-      ["currentState", layer.currentState ?? "not present"],
-      ["scope.mode", layer.scope?.mode ?? "not present"],
-      ["scope.reviewerLogin", layer.scope?.reviewerLogin ?? "not present"],
-    ],
-    lists: [{ title: "allowedTransitions", items: layer.allowedTransitions }],
+  return renderCard({
+    kicker: "Layers",
+    title: "Copilot",
+    className: "handoff-card-tight",
+    dataField: "copilot-layer",
+    body: `${renderStatGrid([
+      { label: "currentState", value: renderCodeValue(layer.currentState) },
+      { label: "loopDisposition", value: renderCodeValue(layer.loopDisposition) },
+      { label: "sameHeadCleanConverged", value: renderBooleanBadge(layer.sameHeadCleanConverged, { positive: true }) },
+      { label: "terminal", value: renderBooleanBadge(layer.terminal, { positive: true }) },
+    ], { columns: "viewer-stat-grid-2" })}
+    ${renderCardListBlock("allowedTransitions", layer.allowedTransitions)}
+    <div class="viewer-card-subsection">
+      <h4>Copilot loop iterations</h4>
+      ${loopIterationEntries ? renderKeyValueRows(loopIterationEntries, { compact: true }) : renderCardEmptyState()}
+    </div>`,
+  });
+}
+
+
+export function renderReviewerLayerSection(layer) {
+  if (layer === null || layer === undefined) {
+    return renderCard({ kicker: "Layers", title: "Reviewer", body: renderCardEmptyState(), className: "handoff-card-tight", dataField: "reviewer-layer" });
+  }
+
+  return renderCard({
+    kicker: "Layers",
+    title: "Reviewer",
+    className: "handoff-card-tight",
+    dataField: "reviewer-layer",
+    body: `${renderStatGrid([
+      { label: "currentState", value: renderCodeValue(layer.currentState) },
+      { label: "scope.mode", value: escapeHtml(layer.scope?.mode ?? "not present") },
+      { label: "scope.reviewerLogin", value: escapeHtml(layer.scope?.reviewerLogin ?? "not present") },
+      { label: "submittedReviewState", value: renderCodeValue(layer.submittedReviewState) },
+      { label: "approvedOnCurrentHead", value: renderBooleanBadge(layer.approvedOnCurrentHead, { positive: true }) },
+    ], { columns: "viewer-stat-grid-2" })}
+    ${renderCardListBlock("allowedTransitions", layer.allowedTransitions)}`,
   });
 }
 
 export function renderSteeringSummarySection(layer) {
   if (layer === null || layer === undefined) {
-    return renderCompactSection({ title: "steering summary" });
+    return renderCard({ kicker: "Layers", title: "Steering", body: renderCardEmptyState(), className: "handoff-card-tight", dataField: "steering-summary" });
   }
 
-  return renderCompactSection({
-    title: "steering summary",
-    entries: [
-      ["status", layer.status ?? "not present"],
-      ["reason", layer.reason ?? "not present"],
-    ],
+  return renderCard({
+    kicker: "Layers",
+    title: "Steering",
+    className: "handoff-card-tight",
+    dataField: "steering-summary",
+    body: renderStatGrid([
+      { label: "status", value: escapeHtml(layer.status ?? "not present") },
+      { label: "reason", value: escapeHtml(layer.reason ?? "not present") },
+    ], { columns: "viewer-stat-grid-2" }),
   });
 }
 
@@ -300,30 +469,6 @@ export function summarizeCurrentPrStatus(snapshot) {
   };
 }
 
-function renderCurrentStateNote(snapshot) {
-  if (!snapshot) {
-    return "Unable to determine the current PR state yet.";
-  }
-
-  if (snapshot.sourceMode === "unavailable") {
-    return "Snapshot unavailable. Open /snapshot.json or reload once the inspection surface is available again.";
-  }
-
-  if ((snapshot.markers?.conflicts?.length ?? 0) > 0) {
-    return "Conflicting evidence is present. Treat the current-state fields below as advisory until the snapshot is reconciled.";
-  }
-
-  if (snapshot.sourceMode === "checkpoint-only") {
-    return "This is a checkpoint-only snapshot. The current-state fields below are advisory, not live-confirmed.";
-  }
-
-  if (snapshot.sourceMode === "partial" || snapshot.trust === "degraded") {
-    return "This snapshot is degraded. The current-state fields below may be incomplete and should be cross-checked against the graph and raw snapshot.";
-  }
-
-  return "These fields are shown directly from the loaded inspection snapshot so the current state stays visible without inventing a second viewer-only status model.";
-}
-
 function buildPullRequestHref(target) {
   if (!target?.repo || target?.pr === null || target?.pr === undefined) {
     return null;
@@ -374,43 +519,120 @@ function summarizeCurrentPrMode(snapshot) {
   return null;
 }
 
-export function renderCurrentStateBanner(snapshot, target, stateLabel, graph, selectedTitle = null) {
+export function renderCurrentStateBanner(snapshot, target, stateLabel, selectedTitle = null) {
   const summary = summarizeCurrentPrStatus(snapshot);
   const pullRequestHref = buildPullRequestHref(target);
   const mode = summarizeCurrentPrMode(snapshot);
   const heading = typeof selectedTitle === "string" && selectedTitle.trim().length > 0
     ? selectedTitle.trim()
     : `PR #${target.pr}`;
+  const targetLabel = target?.repo && target?.pr !== null && target?.pr !== undefined
+    ? `${target.repo}#${target.pr}`
+    : `PR #${target?.pr ?? "unknown"}`;
+  const autoReloadOptions = [
+    { value: "off", label: "Off" },
+    { value: "60000", label: "1 minute" },
+    { value: "300000", label: "5 minutes" },
+    { value: "900000", label: "15 minutes" },
+  ];
+
+  const metaLine = [
+    snapshot?.runId ? `run ${escapeHtml(snapshot.runId)}` : null,
+    snapshot?.inspectedAt ? escapeHtml(snapshot.inspectedAt) : null,
+    snapshot?.sourceMode ? escapeHtml(`source: ${snapshot.sourceMode}`) : null,
+  ].filter(Boolean).join(" · ");
+
   return `<section class="current-pr-state-banner" aria-label="PR #${escapeHtml(target.pr)}">
     <div class="current-pr-state-heading-row">
       <div class="current-pr-state-heading-copy">
         <p class="current-pr-state-kicker">${pullRequestHref
-          ? `<a href="${escapeHtml(pullRequestHref)}">PR #${escapeHtml(target.pr)}</a>`
-          : `PR #${escapeHtml(target.pr)}`}</p>
+          ? `<a href="${escapeHtml(pullRequestHref)}">${escapeHtml(targetLabel)}</a>`
+          : escapeHtml(targetLabel)}</p>
         <h1>${escapeHtml(heading)}</h1>
       </div>
       ${mode ? `<span class="current-pr-state-mode-indicator" title="${escapeHtml(mode.label)}" aria-label="${escapeHtml(mode.label)}">${escapeHtml(mode.emoji)}</span>` : ""}
     </div>
-    <p class="current-pr-state-summary-headline">${escapeHtml(summary.headline)}</p>
-    <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
-    <p class="current-pr-state-detail">${escapeHtml(renderCurrentStateNote(snapshot))}</p>
-    <dl class="current-pr-state-grid">
-      <dt>target</dt><dd><code>${escapeHtml(target.repo)}#${escapeHtml(target.pr)}</code></dd>
-      <dt>snapshot trust</dt><dd><span class="badge">${escapeHtml(stateLabel)}</span></dd>
-      <dt>status class</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.statusClass))}</code></dd>
-      <dt>outer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerState))}</code></dd>
-      <dt>outerAction (compatibility)</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.outerAction))}</code></dd>
-      <dt>current Copilot state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.copilot?.currentState))}</code></dd>
-      <dt>current reviewer state</dt><dd><code>${escapeHtml(formatStateToken(snapshot?.layers?.reviewer?.currentState))}</code></dd>
-      <dt>reviewer verdict</dt><dd>${escapeHtml(renderReviewerVerdict(snapshot))}</dd>
-      <dt>needs attention</dt><dd>${escapeHtml(String(snapshot?.needsAttention ?? "not present"))}</dd>
-      <dt>next action</dt><dd>${escapeHtml(summary.nextAction)}</dd>
-      <dt>trust</dt><dd>${escapeHtml(snapshot?.evidence?.summary ?? "not present")}</dd>
-    </dl>
-    <div class="current-pr-state-visualization">
-      ${renderStateVisualizationSection(snapshot, graph)}
+    <div class="current-pr-state-copy-flow">
+      ${metaLine ? `<p class="current-pr-state-meta">${metaLine}</p>` : ""}
+      <div class="viewer-badge-row current-pr-state-badge-row">
+        ${renderCurrentStateBadge(stateLabel)}
+        ${renderInboxSignalBadge(snapshot)}
+        ${mode ? renderBadge(mode.label, "info") : ""}
+      </div>
+      <p class="current-pr-state-summary-headline"><strong>${escapeHtml(summary.headline)}</strong></p>
+      <p class="current-pr-state-detail">${escapeHtml(summary.detail)}</p>
     </div>
-  </section>`;
+    <div class="current-pr-state-controls" data-auto-reload-controls>
+      <label class="current-pr-state-auto-reload-label" for="current-pr-state-auto-reload">
+        <span aria-hidden="true">⏱</span>
+        <span>Auto-reload:</span>
+      </label>
+      <select id="current-pr-state-auto-reload" class="current-pr-state-auto-reload-select" data-auto-reload-select aria-label="Auto-reload period">
+        ${autoReloadOptions.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
+      </select>
+      <button type="button" class="viewer-action-button current-pr-state-reload" data-auto-reload-manual onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄 Reload</button>
+    </div>
+  </section>
+  <script>
+    (() => {
+      const AUTO_RELOAD_STORAGE_KEY = "inspect-run-viewer:auto-reload-ms";
+      const select = document.querySelector("[data-auto-reload-select]");
+      const manualButton = document.querySelector("[data-auto-reload-manual]");
+      if (!select || !manualButton) {
+        return;
+      }
+
+      let autoReloadTimer = null;
+      const clearAutoReloadTimer = () => {
+        if (autoReloadTimer !== null) {
+          window.clearInterval(autoReloadTimer);
+          autoReloadTimer = null;
+        }
+      };
+      const applyAutoReloadValue = (rawValue) => {
+        const nextValue = Array.from(select.options).some((option) => option.value === rawValue)
+          ? rawValue
+          : "off";
+        select.value = nextValue;
+        const autoReloadEnabled = nextValue !== "off";
+        manualButton.hidden = autoReloadEnabled;
+        clearAutoReloadTimer();
+        if (!autoReloadEnabled) {
+          return;
+        }
+        const intervalMs = Number.parseInt(nextValue, 10);
+        if (Number.isFinite(intervalMs) && intervalMs > 0) {
+          autoReloadTimer = window.setInterval(() => {
+            window.location.reload();
+          }, intervalMs);
+        }
+      };
+
+      let storedValue = "off";
+      try {
+        storedValue = window.localStorage.getItem(AUTO_RELOAD_STORAGE_KEY) ?? "off";
+      } catch {
+        storedValue = "off";
+      }
+      applyAutoReloadValue(storedValue);
+
+      select.addEventListener("change", () => {
+        const nextValue = select.value;
+        try {
+          if (nextValue === "off") {
+            window.localStorage.removeItem(AUTO_RELOAD_STORAGE_KEY);
+          } else {
+            window.localStorage.setItem(AUTO_RELOAD_STORAGE_KEY, nextValue);
+          }
+        } catch {
+          // Ignore localStorage write failures.
+        }
+        applyAutoReloadValue(nextValue);
+      });
+
+      window.addEventListener("beforeunload", clearAutoReloadTimer);
+    })();
+  </script>`;
 }
 
 export function deriveInboxSignalFromSnapshot(snapshot) {

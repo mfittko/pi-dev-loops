@@ -28,11 +28,11 @@ test("createInspectRunViewerServer serves browser html from adapter snapshot wit
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(response.headers["cache-control"], "no-store");
-    assert.match(response.body, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+    assert.match(response.body, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">owner\/repo#55<\/a>/);
     assert.match(response.body, /owner\/repo/);
     assert.match(response.body, /degraded/);
-    assert.match(response.body, /manual reload only/i);
-    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
+    assert.doesNotMatch(response.body, /manual reload only/i);
+    assert.doesNotMatch(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.doesNotMatch(response.body, /"schemaVersion": 1/);
     assert.equal(loadCount, 1);
   } finally {
@@ -144,7 +144,7 @@ test("createInspectRunViewerServer supports selecting another PR from query para
     assert.match(response.body, /aria-label="PR #77"/);
     assert.match(response.body, /<h1>Selected from inbox<\/h1>/);
     assert.match(response.body, /Selected from inbox/);
-    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
+    assert.doesNotMatch(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
     assert.ok(seenTargets.some((target) => target.repo === "owner/repo" && target.pr === 77));
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -373,7 +373,7 @@ test("createInspectRunViewerServer keeps explicit query targets even when they a
     assert.equal(htmlResponse.statusCode, 200);
     assert.match(htmlResponse.body, /aria-label="PR #77"/);
     assert.match(htmlResponse.body, /<h1>PR #77<\/h1>/);
-    assert.match(htmlResponse.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
+    assert.doesNotMatch(htmlResponse.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=77"/);
     assert.doesNotMatch(htmlResponse.body, /aria-current="page"/);
     assert.doesNotMatch(htmlResponse.body, /#77<\/span>/);
 
@@ -786,7 +786,7 @@ test("createInspectRunViewerServer guards malformed request URLs and undefined s
 
     assert.equal(response.statusCode, 200);
     assert.match(response.body, /Snapshot unavailable/);
-    assert.match(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
+    assert.doesNotMatch(response.body, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
     assert.equal(loadCount, 1);
 
     const malformedResponse = await new Promise((resolve) => {
