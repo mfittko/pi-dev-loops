@@ -52,7 +52,7 @@ docker build -t pi-dev-loops .
 Verify the image works with a minimal dev-loop info call:
 
 ```bash
-docker run --rm -e GH_TOKEN="$GH_TOKEN" pi-dev-loops dev-loops loop info --issue 1
+docker run --rm -e GH_TOKEN="$GH_TOKEN" pi-dev-loops dev-loops loop info --repo mfittko/pi-dev-loops --issue 1
 ```
 
 ### Toolchain verification
