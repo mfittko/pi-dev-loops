@@ -825,7 +825,7 @@ test("operator bypass: direct issueLinkageResolution operator_bypass without ski
   assert.match(bundle.reason, /linkage resolution/i);
 });
 
-test("operator bypass: when effective routed target is PR, emits not_applicable not operator_bypass", () => {
+test("operator bypass: local_implementation route preserves operator_bypass in issueLinkageResolution", () => {
   // Simulate a synthetic routed result where skipIssueOrigin is active but
   // routing would land on a PR target (the startup helper does internal routing;
   // this test verifies the effectiveBundleIssueLinkageResolution resolution
@@ -857,4 +857,44 @@ test("operator bypass: when effective routed target is PR, emits not_applicable 
   // operator_bypass should be emitted
   assert.equal(bundle.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS);
   assert.equal(bundle.contractTrace.decision.operatorBypass, true);
+});
+
+test("operator bypass: non-boolean skipIssueOrigin (string) fails closed", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 507 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: "yes" },
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /boolean/i);
+});
+
+test("operator bypass: non-boolean skipIssueOrigin (number) fails closed", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 508 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: 1 },
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /boolean/i);
 });

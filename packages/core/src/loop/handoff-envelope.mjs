@@ -430,7 +430,7 @@ export function buildDevLoopHandoffEnvelope(resolverOutput, settings, gateState 
     ? { ...options.overrides }
     : undefined;
 
-  const acceptanceOverrides = options.acceptance?.overrides && typeof options.acceptance.overrides === "object" && Object.keys(options.acceptance.overrides).length > 0
+  const acceptanceOverrides = options.acceptance?.overrides && typeof options.acceptance.overrides === "object" && !Array.isArray(options.acceptance.overrides) && Object.keys(options.acceptance.overrides).length > 0
     ? { ...options.acceptance.overrides }
     : undefined;
 

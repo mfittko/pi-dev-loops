@@ -1062,8 +1062,18 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
 
   // Operator bypass: skipIssueOrigin bypasses the issue-origin requirement for this invocation.
   // Only settable via acceptance.overrides in the subagent dispatch — not a CLI flag or repo setting.
-  const skipIssueOrigin = input.acceptance?.overrides?.skipIssueOrigin === true;
+  const skipIssueOriginRaw = input.acceptance?.overrides?.skipIssueOrigin;
+  const skipIssueOriginProvided = skipIssueOriginRaw !== undefined && skipIssueOriginRaw !== null;
+  const skipIssueOrigin = skipIssueOriginRaw === true;
   const skipIssueOriginActive = skipIssueOrigin && canonicalState.target.kind === DEV_LOOP_TARGET_KIND.ISSUE;
+  // Fail closed when skipIssueOrigin is provided but not a boolean true/false.
+  if (skipIssueOriginProvided && !skipIssueOrigin && skipIssueOriginRaw !== false) {
+    return buildStartupResumeBundleReconcile({
+      reason: "Operator bypass skipIssueOrigin was provided but is not a boolean value (true/false).",
+      canonicalState,
+      executionMode: effectiveMode,
+    });
+  }
   // When bypass is active, report operator_bypass as the issueLinkageResolution in the output bundle.
   const effectiveBundleIssueLinkageResolution = skipIssueOriginActive
     ? DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS

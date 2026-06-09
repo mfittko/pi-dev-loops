@@ -1354,3 +1354,14 @@ test("invariant: every strategy with default stop rules has an acceptance templa
     );
   }
 });
+
+test("acceptance.overrides: array is rejected (not treated as overrides object)", () => {
+  const env = buildDevLoopHandoffEnvelope(
+    issueBundle(42),
+    defaultSettings,
+    {},
+    { ...defaultOptions, acceptance: { overrides: ["skipIssueOrigin"] } }
+  );
+
+  assert.equal(env.acceptance.overrides, undefined);
+});
