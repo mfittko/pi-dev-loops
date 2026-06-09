@@ -190,8 +190,7 @@ export async function runCli(
     stdout.write(`${JSON.stringify(envelope)}\n`);
   } catch (err) {
     const msg = formatCliError(err);
-    stderr.write(`${msg}
-`);
+    stderr.write(`${msg}\n`);
     process.exitCode = 1;
   }
 }
