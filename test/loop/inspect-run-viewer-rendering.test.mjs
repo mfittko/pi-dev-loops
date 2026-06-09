@@ -165,7 +165,7 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /aria-label="Next page"/);
   assert.doesNotMatch(html, /assigned-pr-title-indicator/);
   assert.match(html, /pr=77/);
-  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">owner\/repo#55<\/a>/);
   assert.match(html, /<h1>Selected PR<\/h1>/);
   assert.match(html, /aria-label="PR #55"/);
   assert.match(html, /title="Waiting state"/);
@@ -179,9 +179,16 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /current Copilot state/);
   assert.match(html, /current reviewer state/);
   assert.match(html, /reviewer verdict/);
-  assert.match(html, /next action/);
+  assert.match(html, /Next action and key metrics/);
   assert.match(html, /Graph guide and lane details/);
-  assert.match(html, /Details/);
+  assert.match(html, /data-tab="graph"/);
+  assert.match(html, /data-tab="overview"/);
+  assert.match(html, /data-tab="layers"/);
+  assert.match(html, /data-tab="handoff"/);
+  assert.match(html, /Graph<\/button>/);
+  assert.match(html, /Overview<\/button>/);
+  assert.match(html, /Layers<\/button>/);
+  assert.doesNotMatch(html, /Live view/);
   assert.match(html, /target\.repo/);
   assert.match(html, /owner\/repo/);
   assert.match(html, /target\.pr/);
@@ -223,15 +230,15 @@ test("renderInspectRunViewerHtml renders required top-level fields for authorita
   assert.match(html, /Dimmed nodes are still part of the authoritative state machine/);
   assert.ok(html.indexOf('class="mermaid-state-graph mermaid"') < html.indexOf('class="state-graph-cues"'));
   assert.match(html, /outer lane comes from the shared authoritative outer-loop graph contract/);
-  assert.match(html, /outer-loop summary/);
+  assert.match(html, /Outer-loop/);
   assert.match(html, /Copilot loop iterations/);
   assert.match(html, /4 completed, 1 pending/);
   assert.match(html, /fix commits: 3/);
-  assert.match(html, /copilot layer/);
-  assert.match(html, /reviewer layer/);
-  assert.match(html, /steering summary/);
+  assert.match(html, /Copilot/);
+  assert.match(html, /Reviewer/);
+  assert.match(html, /Steering/);
   assert.match(html, /href="\/snapshot\.json\?repo=owner%2Frepo&amp;pr=55"/);
-  assert.match(html, /manual reload only/i);
+  assert.match(html, /Reload snapshot/);
   assert.doesNotMatch(html, /Connected state map/);
   assert.doesNotMatch(html, /"schemaVersion": 1/);
   assert.doesNotMatch(html, /"ok": true/);
@@ -353,9 +360,9 @@ test("renderInspectRunViewerHtml does not headline waiting_for_ci when reviewer 
     ],
   });
 
-  assert.match(html, /<p class="current-pr-state-summary-headline">Reviewer loop active<\/p>/);
+  assert.match(html, /<p class="current-pr-state-summary-headline"><strong>Reviewer loop active<\/strong><\/p>/);
   assert.match(html, /<span class="assigned-pr-headline">Reviewer loop active<\/span>/);
-  assert.doesNotMatch(html, /<p class="current-pr-state-summary-headline">Waiting for CI<\/p>/);
+  assert.doesNotMatch(html, /<p class="current-pr-state-summary-headline"><strong>Waiting for CI<\/strong><\/p>/);
   assert.doesNotMatch(html, /<span class="assigned-pr-headline">Waiting for CI<\/span>/);
 });
 
@@ -558,7 +565,7 @@ test("renderInspectRunViewerHtml highlights terminal merged states", () => {
     }),
   });
 
-  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">PR #55<\/a>/);
+  assert.match(html, /<a href="https:\/\/github\.com\/owner\/repo\/pull\/55">owner\/repo#55<\/a>/);
   assert.match(html, /PR complete/);
   assert.match(html, /The current inspection says this PR is in a terminal done state/);
   assert.match(html, /status class[\s\S]*<code>done<\/code>/);
@@ -806,7 +813,7 @@ test("renderInspectRunViewerHtml renders conflicting snapshot cues", () => {
     }),
   });
 
-  assert.match(html, /Snapshot state:[\s\S]*conflicting/);
+  assert.match(html, /handoff-badge-danger">conflicting<\/span>/);
   assert.doesNotMatch(html, /Conflicting graph view[\s\S]*resolve the evidence conflict before trusting the highlights\./i);
   assert.match(html, /Conflicting evidence is present\. Treat the current-state fields below as advisory until the snapshot is reconciled\./i);
   assert.match(html, /checkpoint outerAction/);

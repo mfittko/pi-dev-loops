@@ -8,24 +8,22 @@ import {
   buildInspectionMermaidGraph,
   loadMermaidBrowserScript,
   renderMermaidBootScript,
+  renderStateVisualizationSection,
   resetMermaidBrowserScriptCache,
 } from "./graph.mjs";
 import { buildSnapshotHref, renderInboxShellScript, renderInboxSidebar } from "./inbox.mjs";
 import {
   deriveInboxSignalFromSnapshot,
   renderCopilotLayerSection,
-  renderCopilotLoopIterationsSection,
   renderCurrentStateBanner,
   renderOuterLoopSummarySection,
+  renderOverviewSection,
   renderReviewerLayerSection,
   renderSteeringSummarySection,
 } from "./status.mjs";
 import {
   escapeHtml,
   normalizeInboxSignal,
-  renderCollapsedDetailsPanel,
-  renderDefinitionList,
-  renderList,
   renderSnapshotStateLabel,
   renderTargetKey,
 } from "./shared.mjs";
@@ -67,36 +65,7 @@ export function renderInspectRunViewerHtml({
   const title = target
     ? `${target.repo}#${target.pr} inspection snapshot`
     : `${scopeLabel} PR inspection dashboard`;
-  const runId = normalizedSnapshot?.runId ?? "not present";
   const rawSnapshotHref = buildSnapshotHref(target, scopeFilter);
-  const topSummary = target === null
-    ? `<section>
-      <h2>No PR selected</h2>
-      <p>No assigned PR in ${escapeHtml(scopeLabel)} matched the current view yet.</p>
-      <p>Pick a PR from the sidebar, widen the state or updated filters, or move to another inbox page.</p>
-    </section>`
-    : normalizedSnapshot === null
-      ? `<section>
-        <h2>Snapshot unavailable</h2>
-        <p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p>
-        <p>Manual reload only: use the reload button or browser refresh.</p>
-      </section>`
-      : `<section>
-        <h2>Top summary</h2>
-        ${renderDefinitionList([
-          ["target.repo", normalizedSnapshot.target?.repo ?? target.repo],
-          ["target.pr", normalizedSnapshot.target?.pr ?? target.pr],
-          ["runId", runId],
-          ["inspectedAt", normalizedSnapshot.inspectedAt ?? "not present"],
-        ])}
-        <h3>Markers</h3>
-        <h4>markers.missing</h4>
-        ${renderList(normalizedSnapshot.markers?.missing)}
-        <h4>markers.stale</h4>
-        ${renderList(normalizedSnapshot.markers?.stale)}
-        <h4>markers.conflicts</h4>
-        ${renderList(normalizedSnapshot.markers?.conflicts)}
-      </section>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -158,27 +127,55 @@ export function renderInspectRunViewerHtml({
       .assigned-pr-page-link.is-disabled { color: #9aa9b8; pointer-events: none; }
       .assigned-pr-page-status { font-weight: 700; color: #253b53; }
       .inspection-main { min-width: 0; }
-      .badge { display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; font-weight: 600; }
-      .current-pr-state-banner { border: none; background: none; box-shadow: none; padding: 0; margin-top: 0; }
+      .current-pr-state-banner { border: 1px solid #d7e3f4; border-radius: 1rem; background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%); box-shadow: 0 1px 2px rgba(35, 69, 102, 0.06); padding: 1rem 1.1rem; margin-top: 0; }
       .current-pr-state-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
       .current-pr-state-heading-copy { min-width: 0; }
-      .current-pr-state-kicker { margin: 0 0 0.28rem 0; font-size: 0.96rem; font-weight: 700; }
+      .current-pr-state-kicker { margin: 0 0 0.25rem 0; font-size: 0.86rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #486174; }
       .current-pr-state-kicker a { color: #355061; text-decoration: none; }
       .current-pr-state-kicker a:hover { text-decoration: underline; }
-      .current-pr-state-mode-indicator { flex: 0 0 auto; font-size: 1.55rem; line-height: 1; margin-top: 0.08rem; }
-      .current-pr-state-banner h1 { margin: 0 0 0.5rem 0; font-size: 2.2rem; line-height: 1.15; }
-      .current-pr-state-summary-headline { margin: 0 0 0.4rem 0; color: #1565c0; font-weight: 700; font-size: 1.1rem; }
-      .current-pr-state-detail { margin: 0.25rem 0 0.8rem 0; color: #274766; font-size: 0.98rem; }
-      .current-pr-state-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); background: none; padding: 0; border-radius: 0; margin-bottom: 1rem; }
-      .current-pr-state-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4c6478; }
-      .current-pr-state-grid dd { margin: 0 0 0.75rem 0; }
+      .current-pr-state-mode-indicator { flex: 0 0 auto; font-size: 1.65rem; line-height: 1; margin-top: 0.08rem; }
+      .current-pr-state-banner h1 { margin: 0; font-size: 2rem; line-height: 1.15; color: #18324a; }
+      .current-pr-state-summary-headline { margin: 0.75rem 0 0.3rem 0; color: #1565c0; font-size: 1.06rem; }
+      .current-pr-state-detail { margin: 0; color: #274766; font-size: 0.98rem; }
+      .current-pr-state-note { margin: 0.55rem 0 0 0; color: #4b6579; font-size: 0.92rem; }
+      .current-pr-state-badge-row { margin-top: 0.75rem; }
+      .viewer-badge-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .viewer-card-grid { display: grid; gap: 1rem; align-items: start; }
+      .viewer-card-grid-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .viewer-card-grid-layers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .viewer-tab-section { border: none; background: none; padding: 0; margin-top: 1rem; }
+      .viewer-tab-shell { position: sticky; top: 0.65rem; z-index: 4; border: 1px solid #d7e3f4; border-radius: 0.85rem; background: rgba(251, 253, 255, 0.96); backdrop-filter: blur(6px); padding: 0.3rem; margin-top: 0.85rem; }
+      .viewer-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; }
+      .viewer-tab { padding: 0.58rem 0.9rem; cursor: pointer; border: 1px solid transparent; border-radius: 0.7rem; background: transparent; font: inherit; font-weight: 700; color: #486174; transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s; }
+      .viewer-tab:hover { color: #1565c0; background: #f4f9ff; }
+      .viewer-tab.active { color: #1565c0; background: #fff; border-color: #c8d9ec; box-shadow: 0 1px 2px rgba(35, 69, 102, 0.08); }
+      .tab-content { display: none; }
+      .tab-content.active { display: block; }
+      .viewer-card { min-width: 0; }
+      .viewer-card-list-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 0.9rem; }
+      .viewer-card-list-block h4,
+      .viewer-card-subsection h4,
+      .viewer-graph-header h3 { margin: 0 0 0.5rem 0; font-size: 0.88rem; font-weight: 700; color: #486174; }
+      .viewer-card-subsection { margin-top: 0.95rem; }
+      .viewer-card-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+      .viewer-card-list li { border: 1px solid #dbe6f3; border-radius: 0.65rem; background: #fbfdff; padding: 0.5rem 0.65rem; color: #23384d; }
+      .viewer-card-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: center; margin-top: 0.95rem; }
+      .viewer-action-button { border: 1px solid #bfd0e2; border-radius: 0.55rem; background: #fff; color: #355061; padding: 0.45rem 0.7rem; font: inherit; font-weight: 700; cursor: pointer; }
+      .viewer-action-button:hover { background: #f4f9ff; }
+      .viewer-inline-link { color: #2456a6; font-weight: 600; text-decoration: none; }
+      .viewer-inline-link:hover { text-decoration: underline; }
+      .viewer-stat-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .viewer-stat-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .viewer-next-action { margin-bottom: 0.9rem; }
+      .viewer-graph-header { margin-bottom: 0.75rem; }
+      .viewer-graph-header p { margin: 0.35rem 0 0 0; color: #486174; }
       .state-graph-block { margin-top: 0.4rem; }
       .state-graph-frame { margin-top: 0.5rem; border: 1px solid #d7e3f4; border-radius: 0.75rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%); }
       .state-graph-toolbar { display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.65rem; border-bottom: 1px solid #d7e3f4; background: rgba(255,255,255,0.85); }
       .state-graph-toolbar button { border: 1px solid #9fb6cb; background: #fff; border-radius: 0.45rem; padding: 0.3rem 0.6rem; font: inherit; cursor: pointer; }
       .state-graph-toolbar button:hover { background: #f3f8fd; }
       .state-graph-zoom-value { margin-left: auto; font-size: 0.88rem; color: #486174; }
-      .mermaid-state-graph { min-height: 16rem; padding: 0.75rem; overflow: auto; cursor: grab; user-select: none; touch-action: none; }
+      .mermaid-state-graph { min-height: 20rem; padding: 0.75rem; overflow: auto; cursor: grab; user-select: none; touch-action: none; }
       .mermaid-state-graph[data-dragging="true"] { cursor: grabbing; }
       .mermaid-state-graph[data-rendered="pending"] { color: #5a7184; opacity: 0; pointer-events: none; }
       .mermaid-state-graph[data-rendered="settling"] { opacity: 0; pointer-events: none; }
@@ -198,33 +195,94 @@ export function renderInspectRunViewerHtml({
       .state-graph-render-error { margin: 0; padding: 0.9rem; color: #7f4b00; }
       .state-graph-summaries { margin: 0.85rem 0 0 0; padding-left: 1.1rem; }
       .state-graph-summary + .state-graph-summary { margin-top: 0.3rem; }
-      .inspection-details { margin-top: 1rem; }
-      .inspection-details summary { cursor: pointer; font-weight: 700; }
       dl { display: grid; grid-template-columns: 14rem 1fr; gap: 0.35rem 0.75rem; }
       dt { font-weight: 600; }
       section { border: 1px solid #ddd; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; }
-      .viewer-tabs { display: flex; gap: 0; margin: 1rem 0 0 0; border-bottom: 2px solid #ddd; }
-      .viewer-tab { padding: 0.5rem 1rem; cursor: pointer; border: none; background: none; font: inherit; font-weight: 600; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.15s, border-color 0.15s; }
-      .viewer-tab:hover { color: #1565c0; }
-      .viewer-tab.active { color: #1565c0; border-bottom-color: #1565c0; }
-      .tab-content { display: none; }
-      .tab-content.active { display: block; }
+      .handoff-envelope-section { border-color: #d7e3f4; background: linear-gradient(180deg, #fbfdff 0%, #f7fbff 100%); }
+      .handoff-hero { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 0.9fr); gap: 1rem; align-items: start; }
+      .handoff-hero h2 { margin: 0; font-size: 1.9rem; line-height: 1.12; }
+      .handoff-card-kicker { margin: 0 0 0.35rem 0; font-size: 0.76rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #486174; }
+      .handoff-hero-meta { margin: 0.5rem 0 0 0; color: #486174; }
+      .handoff-hero-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
+      .handoff-layout { display: grid; grid-template-columns: minmax(17rem, 24rem) minmax(0, 1fr); gap: 1rem; margin-top: 1rem; align-items: start; }
+      .handoff-column { display: grid; gap: 1rem; align-content: start; }
+      .handoff-card { border: 1px solid #d7e3f4; border-radius: 0.85rem; background: #fff; box-shadow: 0 1px 2px rgba(35, 69, 102, 0.06); padding: 0.95rem 1rem; }
+      .handoff-card h3 { margin: 0 0 0.75rem 0; font-size: 1.03rem; color: #23384d; }
+      .handoff-card-tight { height: 100%; }
+      .handoff-card-emphasis { background: linear-gradient(180deg, #ffffff 0%, #f6faff 100%); }
+      .handoff-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+      .handoff-stat { border: 1px solid #dbe6f3; border-radius: 0.7rem; background: #fbfdff; padding: 0.65rem 0.75rem; }
+      .handoff-stat-label { display: block; font-size: 0.74rem; font-weight: 700; color: #567086; margin-bottom: 0.28rem; }
+      .handoff-stat-value { display: block; color: #20384f; font-weight: 700; }
+      .handoff-empty-state { border: 1px dashed #b8c9db; border-radius: 0.85rem; background: #fff; padding: 1.25rem; }
+      .handoff-empty-state h2 { margin: 0 0 0.5rem 0; }
+      .handoff-kv { display: grid; grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr); gap: 0.65rem 0.9rem; margin: 0; }
+      .handoff-kv-compact { grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr); }
+      .handoff-kv-row { display: contents; }
+      .handoff-kv dt { font-size: 0.78rem; font-weight: 700; color: #4c6478; }
+      .handoff-kv dd { margin: 0; min-width: 0; color: #23384d; }
+      .handoff-badge { display: inline-flex; align-items: center; justify-content: center; padding: 0.2rem 0.58rem; border-radius: 999px; border: 1px solid #b8c9db; background: #f6f9fc; color: #355061; font-size: 0.82rem; font-weight: 700; line-height: 1.2; }
+      .handoff-badge-success { border-color: #9dd4a2; background: #edf8ee; color: #25632a; }
+      .handoff-badge-warning { border-color: #f2c37b; background: #fff4de; color: #915800; }
+      .handoff-badge-danger { border-color: #efb0b0; background: #fff0f0; color: #9f2c2c; }
+      .handoff-badge-info { border-color: #b5cdef; background: #edf4ff; color: #2456a6; }
+      .handoff-badge-muted { border-color: #d5dde7; background: #f5f7fa; color: #5e7283; }
+      .handoff-next-action { font-size: 1rem; line-height: 1.55; color: #1f354b; padding: 0.85rem 0.95rem; border: 1px solid #dce8f5; border-radius: 0.8rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f9ff 100%); }
+      .handoff-next-action p { margin: 0; }
+      .handoff-subsection + .handoff-subsection { margin-top: 0.95rem; }
+      .handoff-subgrid { display: grid; grid-template-columns: 1.6fr minmax(12rem, 0.9fr); gap: 1rem; align-items: start; }
+      .handoff-subsection h4 { margin: 0.95rem 0 0.45rem 0; font-size: 0.84rem; font-weight: 700; color: #486174; }
+      .handoff-chip-list,
+      .handoff-read-list,
+      .handoff-criteria-list { margin: 0; padding: 0; list-style: none; }
+      .handoff-chip-list { display: flex; flex-wrap: wrap; gap: 0.42rem; }
+      .handoff-read-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.42rem; }
+      .handoff-read-list li { padding: 0.48rem 0.65rem; border: 1px solid #dbe6f3; border-radius: 0.65rem; background: #fbfdff; }
+      .handoff-read-list code { color: #20496f; }
+      .handoff-criteria-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+      .handoff-criteria-item { border: 1px solid #dbe6f3; border-left: 0.32rem solid #6d90c6; border-radius: 0.75rem; padding: 0.75rem; background: #fbfdff; }
+      .handoff-criteria-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.45rem; }
+      .handoff-criteria-item p { margin: 0; color: #304a62; }
+      .handoff-empty-copy,
+      .handoff-empty-value { color: #708497; }
       .current-pr-state-banner section,
       .current-pr-state-banner .state-graph-block,
       .current-pr-state-banner .current-pr-state-visualization { border: none; padding: 0; margin-top: 0; }
+      @media (max-width: 1100px) {
+        .viewer-card-grid-overview,
+        .viewer-card-grid-layers,
+        .viewer-card-list-grid,
+        .viewer-stat-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
       @media (max-width: 900px) {
         .inspection-shell { grid-template-columns: minmax(0, 1fr); }
         .assigned-pr-inbox { position: static; max-height: none; }
-        .current-pr-state-grid { grid-template-columns: 1fr 1fr; }
+        .handoff-hero,
+        .handoff-layout,
+        .handoff-subgrid,
+        .handoff-criteria-list,
+        .handoff-read-list,
+        .viewer-card-grid-overview,
+        .viewer-card-grid-layers,
+        .viewer-card-list-grid { grid-template-columns: 1fr; }
+        .handoff-stat-grid,
+        .viewer-stat-grid-2,
+        .viewer-stat-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 640px) {
-        .current-pr-state-grid { grid-template-columns: 1fr; }
         .state-graph-toolbar { flex-wrap: wrap; }
         .state-graph-zoom-value { margin-left: 0; }
         .assigned-pr-secondary-controls { flex-wrap: wrap; }
         .assigned-pr-select-mid,
         .assigned-pr-select-sm,
         .assigned-pr-select-updated { width: 100%; max-width: none; margin-left: 0; flex: 1 1 6rem; }
+        .handoff-kv,
+        .handoff-kv-compact,
+        .handoff-stat-grid,
+        .viewer-stat-grid-2,
+        .viewer-stat-grid-3 { grid-template-columns: 1fr; }
+        .viewer-action-button,
+        .viewer-inline-link { width: 100%; }
       }
     </style>
   </head>
@@ -234,33 +292,61 @@ export function renderInspectRunViewerHtml({
       <main class="inspection-main">
         ${target === null
           ? `<section class="current-pr-state-banner" aria-label="${escapeHtml(scopeLabel)} PR inspection dashboard">
-              <h1>${escapeHtml(scopeLabel)} PR inspection dashboard</h1>
-              <p class="current-pr-state-summary-headline">Choose a PR from the sidebar</p>
+              <div class="current-pr-state-heading-row">
+                <div class="current-pr-state-heading-copy">
+                  <p class="current-pr-state-kicker">Inspection dashboard</p>
+                  <h1>${escapeHtml(scopeLabel)} PR inspection dashboard</h1>
+                </div>
+              </div>
+              <p class="current-pr-state-summary-headline"><strong>No PR selected</strong></p>
               <p class="current-pr-state-detail">This local/operator dashboard is read-only. inspect-run remains authoritative for inspection/status state while this UI owns inbox discovery plus read-only presentation/prioritization.</p>
-              <p class="current-pr-state-detail">The dashboard can span all assigned repos or be narrowed to one repo. The sidebar defaults to open PRs from the last 7 days and paginates through the result set.</p>
+              <p class="current-pr-state-note">No assigned PR in ${escapeHtml(scopeLabel)} matched the current view yet. Pick a PR from the sidebar, widen the state or updated filters, or move to another inbox page.</p>
+            </section>
+            <section class="viewer-tab-section" aria-label="Dashboard empty state">
+              <div class="handoff-empty-state">
+                <h2>Choose a PR from sidebar</h2>
+                <p>The dashboard can span all assigned repos or be narrowed to one repo. Sidebar defaults to open PRs from last 7 days and paginates through result set.</p>
+              </div>
             </section>`
-          : renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
-        ${renderCollapsedDetailsPanel(`
-      <p><strong>Snapshot state:</strong> <span class="badge">${escapeHtml(stateLabel)}</span> <button type="button" onclick="window.location.reload()" title="Reload snapshot" aria-label="Reload snapshot">🔄</button></p>
-      <p><strong>Refresh:</strong> manual reload only.${rawSnapshotHref ? ` <strong>Raw snapshot:</strong> <a href="${escapeHtml(rawSnapshotHref)}"><code>${escapeHtml(rawSnapshotHref)}</code></a>` : ""}</p>
-      ${topSummary}
-    `)}
-      <div class="viewer-tabs">
-        <button class="viewer-tab active" data-tab="live" onclick="switchTab('live')">Live view</button>
-        <button class="viewer-tab" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
-      </div>
-      <div class="tab-content active" id="tab-live">
-        ${renderCollapsedDetailsPanel(`
-      ${renderOuterLoopSummarySection(normalizedSnapshot)}
-      ${renderCopilotLoopIterationsSection(normalizedSnapshot)}
-      ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot)}
-      ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
-      ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
-        `)}
-      </div>
-      <div class="tab-content" id="tab-handoff">
-        ${renderHandoffEnvelopeSection(handoffEnvelope)}
-      </div>
+          : `${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
+            <div class="viewer-tab-shell" role="tablist" aria-label="Inspect run viewer tabs">
+              <div class="viewer-tabs">
+                <button class="viewer-tab active" data-tab="graph" onclick="switchTab('graph')">Graph</button>
+                <button class="viewer-tab" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+                <button class="viewer-tab" data-tab="layers" onclick="switchTab('layers')">Layers</button>
+                <button class="viewer-tab" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
+              </div>
+            </div>
+            <div class="tab-content active" id="tab-graph">
+              <section class="viewer-tab-section" aria-label="Graph">
+                <article class="handoff-card handoff-card-emphasis viewer-card">
+                  <p class="handoff-card-kicker">Graph</p>
+                  <div class="viewer-graph-header">
+                    <h3>Full state machine</h3>
+                    <p>Authoritative Mermaid lane graph. Use zoom controls, drag, and graph guide to inspect current and next-state cues.</p>
+                  </div>
+                  ${graph === null
+                    ? `<p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p><p>Snapshot unavailable, so no state graph can be rendered yet. Manual reload only.</p>`
+                    : `<div class="viewer-graph-body">${renderStateVisualizationSection(normalizedSnapshot, graph)}</div>`}
+                </article>
+              </section>
+            </div>
+            <div class="tab-content" id="tab-overview">
+              ${renderOverviewSection(normalizedSnapshot, target, stateLabel, rawSnapshotHref)}
+            </div>
+            <div class="tab-content" id="tab-layers">
+              <section class="viewer-tab-section" aria-label="Layers">
+                <div class="viewer-card-grid viewer-card-grid-layers">
+                  ${renderOuterLoopSummarySection(normalizedSnapshot)}
+                  ${renderCopilotLayerSection(normalizedSnapshot?.layers?.copilot, normalizedSnapshot)}
+                  ${renderReviewerLayerSection(normalizedSnapshot?.layers?.reviewer)}
+                  ${renderSteeringSummarySection(normalizedSnapshot?.layers?.steering)}
+                </div>
+              </section>
+            </div>
+            <div class="tab-content" id="tab-handoff">
+              ${renderHandoffEnvelopeSection(handoffEnvelope)}
+            </div>`}
       </main>
     </div>
     ${renderInboxShellScript()}

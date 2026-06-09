@@ -68,7 +68,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("link", { name: "PR #55" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "owner/repo#55" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
     const currentStateBanner = page.locator('section[aria-label="PR #55"]');
     await expect(currentStateBanner).toBeVisible();
@@ -123,7 +123,7 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     const graphGuide = page.getByText(/Graph guide and lane details/);
     await expect(graphGuide).toBeVisible();
     await graphGuide.click();
-    const graphBox = page.locator(".current-pr-state-visualization");
+    const graphBox = page.locator("#tab-graph .viewer-graph-body");
     await expect(graphBox.getByRole("button", { name: "Zoom in" })).toBeVisible();
     await expect(graphBox.getByRole("button", { name: "Zoom out" })).toBeVisible();
     await expect(graphBox.getByRole("button", { name: "Reset zoom" })).toBeVisible();
@@ -211,8 +211,8 @@ test("webkit renders the Mermaid-first inspect-run viewer and captures a screens
     });
     await expect(graphBox.locator("[data-graph-zoom-value]")).toHaveText("125%");
 
-    await page.locator(".inspection-details").first().locator("summary").click();
-    await expect(page.getByRole("link", { name: /\/snapshot\.json\?repo=owner%2Frepo&pr=55/ })).toBeVisible();
+    await page.locator('.viewer-tab[data-tab="overview"]').click();
+    await expect(page.getByRole("link", { name: /Open raw snapshot JSON/ })).toBeVisible();
 
     await captureNamedUiState({
       page,
@@ -249,7 +249,7 @@ test("webkit shows checkpoint-only graph uncertainty without guessing missing tr
 
     await expect(page.getByRole("heading", { name: "Current PR" })).toBeVisible();
     await expect(page.locator(".current-pr-state-summary-headline")).toContainText(/Needs attention/);
-    await expect(page.locator(".current-pr-state-detail").last()).toContainText(/checkpoint-only snapshot/i);
+    await expect(page.locator(".current-pr-state-note")).toContainText(/checkpoint-only snapshot/i);
     await expect(page.locator(".state-graph-intro")).toHaveCount(0);
     await page.getByText(/Graph guide and lane details/).click();
     const graph = await waitForMermaidGraph(page);
@@ -327,8 +327,10 @@ test("webkit shows terminal merged states clearly in the Mermaid graph", async (
     const currentStateBanner = page.locator('section[aria-label="PR #55"]');
     await expect(currentStateBanner.getByRole("heading", { name: "Current PR" })).toBeVisible();
     await expect(currentStateBanner.getByText("PR complete")).toBeVisible();
-    await expect(page.locator(".current-pr-state-grid")).toContainText(/status class/);
-    await expect(page.locator(".current-pr-state-grid")).toContainText(/done/);
+    await page.locator('.viewer-tab[data-tab="overview"]').click();
+    await expect(page.locator('#tab-overview')).toContainText(/status class/);
+    await expect(page.locator('#tab-overview')).toContainText(/done/);
+    await page.locator('.viewer-tab[data-tab="graph"]').click();
     await page.getByText(/Graph guide and lane details/).click();
     const graph = await waitForMermaidGraph(page);
     await expect(graph).toContainText(/End/);
@@ -394,15 +396,19 @@ test("webkit renders the Agent handoff tab and validates structured envelope ren
     await expect(handoffTab).toBeVisible();
     await expect(handoffTab).toHaveText("Agent handoff");
 
-    // Live view tab is visible and active by default
-    const liveTab = page.locator('.viewer-tab[data-tab="live"]');
-    await expect(liveTab).toBeVisible();
-    await expect(liveTab).toHaveClass(/active/);
+    // Graph tab is visible and active by default
+    const graphTab = page.locator('.viewer-tab[data-tab="graph"]');
+    const overviewTab = page.locator('.viewer-tab[data-tab="overview"]');
+    const layersTab = page.locator('.viewer-tab[data-tab="layers"]');
+    await expect(graphTab).toBeVisible();
+    await expect(overviewTab).toBeVisible();
+    await expect(layersTab).toBeVisible();
+    await expect(graphTab).toHaveClass(/active/);
 
     // Handoff tab content is present (may show "Envelope unavailable" if resolver unavailable)
     await handoffTab.click();
     await expect(handoffTab).toHaveClass(/active/);
-    await expect(liveTab).not.toHaveClass(/active/);
+    await expect(graphTab).not.toHaveClass(/active/);
 
     // Handoff content section is visible
     const handoffSection = page.locator("#handoff-envelope-section");
@@ -413,13 +419,14 @@ test("webkit renders the Agent handoff tab and validates structured envelope ren
     await expect(handoffSection).not.toContainText(/Envelope unavailable/);
     await expect(handoffSection).toContainText(/Target/);
     await expect(handoffSection).toContainText(/Current state/);
-    await expect(page.locator("#handoff-envelope-section dt:has-text('currentGate') + dd")).toHaveText("draft");
+    await expect(page.locator('#handoff-envelope-section .handoff-card')).toHaveCount(9);
+    await expect(page.locator('#handoff-envelope-section [data-field="currentGate"] dd')).toHaveText(/draft/i);
     await expect(handoffSection).toContainText(/Policy/);
     await expect(handoffSection).toContainText(/Acceptance/);
 
-    // Switch back to live view
-    await liveTab.click();
-    await expect(liveTab).toHaveClass(/active/);
+    // Switch back to graph view
+    await graphTab.click();
+    await expect(graphTab).toHaveClass(/active/);
   } finally {
     await stopFixtureServer(server);
   }
