@@ -6,11 +6,12 @@ const fromRepoRoot = (relativePath) => new URL(`../../${relativePath}`, import.m
 const readRepo = (relativePath) => readFile(fromRepoRoot(relativePath), 'utf8');
 
 test('designer review loop doc remains the canonical bounded UI review handoff contract and the stale template is gone', async () => {
-  const [doc, readme, indexDoc, localImplementationSkill] = await Promise.all([
+  const [doc, readme, indexDoc, localImplementationSkill, visionTemplate] = await Promise.all([
     readRepo('docs/ui-designer-review-loop.md'),
     readRepo('README.md'),
     readRepo('docs/index.md'),
     readRepo('skills/local-implementation/SKILL.md'),
+    readRepo('skills/dev-loop/templates/ui-vision-review.md'),
   ]);
 
   assert.match(doc, /designer-persona review loop/i);
@@ -25,11 +26,21 @@ test('designer review loop doc remains the canonical bounded UI review handoff c
   assert.match(doc, /blocked_needs_human_decision/i);
   assert.match(doc, /fails closed/i);
   assert.match(doc, /does not trigger for non-UI work/i);
+  assert.match(doc, /uiReviewMode: vision/i);
+  assert.match(doc, /ready_for_vision_review/i);
+  assert.match(doc, /skills\/dev-loop\/templates\/ui-vision-review\.md/i);
 
   await assert.rejects(
     stat(fromRepoRoot('skills/dev-loop/templates/ui-designer-review.md')),
     (error) => error && error.code === 'ENOENT',
   );
+
+  await stat(fromRepoRoot('skills/dev-loop/templates/ui-vision-review.md'));
+  assert.match(visionTemplate, /gpt-5\.4/i);
+  assert.match(visionTemplate, /screenshot\.png/i);
+  assert.match(visionTemplate, /continue_ui_fix_loop/i);
+  assert.match(visionTemplate, /ui_review_satisfied/i);
+  assert.match(visionTemplate, /blocked_needs_human_decision/i);
 
   assert.match(readme, /docs\/ui-designer-review-loop\.md/i);
   assert.match(indexDoc, /ui-designer-review-loop\.md/i);

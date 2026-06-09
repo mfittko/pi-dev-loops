@@ -18,7 +18,7 @@ Start here for repository documentation.
 - [UI Validation Contract](./ui-validation-contract.md)
 - [UI Smoke Harness](./ui-smoke-harness.md)
 - [UI Artifact Contract](./ui-artifact-contract.md)
-- [UI Designer Review Loop](./ui-designer-review-loop.md)
+- [UI Designer + Vision Review Loop](./ui-designer-review-loop.md)
 
 ## Active local phase doc
 
