@@ -588,7 +588,7 @@ export function renderCurrentStateBanner(snapshot, target, stateLabel, selectedT
     </div>
     <div class="current-pr-state-controls" data-auto-reload-controls>
       <label class="current-pr-state-auto-reload-label" for="current-pr-state-auto-reload">
-        <span class="auto-reload-icon" aria-hidden="true">⏱</span>
+        <span aria-hidden="true">⏱</span>
         <span>Auto-reload:</span>
       </label>
       <select id="current-pr-state-auto-reload" class="current-pr-state-auto-reload-select" data-auto-reload-select aria-label="Auto-reload period">

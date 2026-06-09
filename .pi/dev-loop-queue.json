@@ -1,17 +1,1 @@
-{
-  "version": 1,
-  "entries": [
-    {
-      "target": "740",
-      "kind": "issue",
-      "status": "queued",
-      "dependsOn": [],
-      "pr": null,
-      "runId": null,
-      "retrospectiveWritten": false,
-      "failureReason": null,
-      "failureKind": null,
-      "retryCount": 0
-    }
-  ]
-}
+{"ok":true,"entries":[]}

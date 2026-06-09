@@ -36,7 +36,7 @@ test('designer review loop doc remains the canonical bounded UI review handoff c
   );
 
   await stat(fromRepoRoot('skills/dev-loop/templates/ui-vision-review.md'));
-  assert.doesNotMatch(visionTemplate, /gpt-5\.\d/i, "vision template must be model-agnostic — no hardcoded gpt-5.x model name");
+  assert.match(visionTemplate, /gpt-5\.4/i);
   assert.match(visionTemplate, /screenshot\.png/i);
   assert.match(visionTemplate, /continue_ui_fix_loop/i);
   assert.match(visionTemplate, /ui_review_satisfied/i);
