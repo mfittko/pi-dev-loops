@@ -605,7 +605,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
   }
   if (existing) {
     const updated = await updateComment({ repo: options.repo, commentId: existing.commentId, body: desiredBody }, { env, ghCommand });
-    // Root cause 4: verify the updated comment is visible. Only active when
+    // Post-update verification: verify the updated comment is visible via direct
     // PI_SUBAGENT_RUN_ID is set (production context).
     let updateVerificationWarning = null;
     if (envRunId) {
@@ -634,7 +634,7 @@ export async function upsertCheckpointVerdict(options, { env = process.env, ghCo
     };
   }
   const created = await createComment({ repo: options.repo, pr: options.pr, body: desiredBody }, { env, ghCommand });
-  // Root cause 4: verify the comment is actually visible before returning.
+  // Post-creation verification: verify the comment is retrievable before returning.
   // GitHub API can have brief eventual-consistency windows where a just-posted
   // comment is not yet returned by paginated list endpoints. A direct fetch
   // by comment ID confirms the comment is persisted, preventing the evidence
