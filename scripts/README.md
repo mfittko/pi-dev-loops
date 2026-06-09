@@ -199,6 +199,28 @@ Failure behavior:
 - malformed arguments and unexpected `gh` failures emit `{ "ok": false, "error": "..." }` on stderr and exit non-zero
 - argument errors also include `"usage"` in the error payload
 
+### `scripts/refine/verify.mjs`
+
+Verify epic-tree refinement structure and contracts in one pass.
+
+Usage:
+- `node scripts/refine/verify.mjs --issue <number> [--repo <owner/name>] [--json]`
+- `node scripts/refine/verify.mjs --input <path> [--json]`
+
+Contract:
+- runs four deterministic checkers:
+  - `prose-linkage-detector` (forbidden prose parent/child/dependency markers + missing API links)
+  - `scope-boundary-cross-checker` (mutual-exclusion gaps + duplicate sibling ownership)
+  - `refinement-completeness-checker` (AC/DoD/non-goals/matrix presence)
+  - `tree-integrity-validator` (parent links, orphan detection, cycles, max depth 3)
+- online mode (`--issue`) walks GitHub sub-issues API from the root issue
+- offline mode (`--input`) validates a local refinement tree JSON snapshot
+- default output is human-readable text; `--json` emits machine-readable output for CI
+
+Failure behavior:
+- checker findings are process-failing (`exit 1`) because verification did not pass
+- malformed arguments and runtime/API errors emit `{ "ok": false, "error": "...", "usage": "..." }` on stderr and exit non-zero
+
 ### `scripts/github/stage-reviewer-draft.mjs`
 
 Stage a pending reviewer-side draft review from a merged deterministic review package.
