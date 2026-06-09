@@ -118,6 +118,62 @@ test("detect-copilot-loop-state --input routes already-fixed threads to already_
   }
 });
 
+test("detect-copilot-loop-state --input routes clean exhausted rounds to round_cap_clean_fallback", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-round-cap-clean-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      copilotReviewRoundCount: 5,
+      ciStatus: "success",
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "round_cap_clean_fallback");
+    assert.equal(output.terminal, true);
+    assert.match(output.nextAction, /pre_approval_gate/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state --input routes blocked exhausted rounds to round_cap_reached", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-round-cap-blocked-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 1,
+      actionableThreadCount: 1,
+      copilotReviewRoundCount: 5,
+      ciStatus: "success",
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "round_cap_reached");
+    assert.equal(output.terminal, true);
+    assert.match(output.nextAction, /do not re-request review/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("detect-copilot-loop-state --input routes failed review request to blocked_needs_user_decision", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-failed-"));
 

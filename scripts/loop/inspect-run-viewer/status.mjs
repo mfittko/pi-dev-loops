@@ -310,14 +310,6 @@ export function summarizeCurrentPrStatus(snapshot) {
   const copilotTerminal = snapshot.layers?.copilot?.terminal === true;
   const reviewerApprovedOnCurrentHead = snapshot.layers?.reviewer?.approvedOnCurrentHead === true;
 
-  if (outerState === OUTER_STATE.DONE_TERMINAL || statusClass === "done" || outerAction === "done" || copilotState === "done") {
-    return {
-      headline: "PR complete",
-      detail: "The current inspection says this PR is in a terminal done state.",
-      nextAction: "Confirm merge/readiness context or inspect the raw snapshot for terminal evidence.",
-    };
-  }
-
   if (outerState === OUTER_STATE.NEEDS_RECONCILE) {
     return {
       headline: "Needs reconcile",
@@ -339,6 +331,38 @@ export function summarizeCurrentPrStatus(snapshot) {
       headline: "Needs attention",
       detail: "The authoritative outer state is stop_needs_human, so automated progress should stop until a human resolves the blocking condition.",
       nextAction: "Read the stop reason, trust markers, and layer summaries before proceeding.",
+    };
+  }
+
+  if (outerState === OUTER_STATE.DONE_TERMINAL) {
+    return {
+      headline: "PR complete",
+      detail: "The current inspection says this PR is in a terminal done state.",
+      nextAction: "Confirm merge/readiness context or inspect the raw snapshot for terminal evidence.",
+    };
+  }
+
+  if (copilotState === "round_cap_clean_fallback") {
+    return {
+      headline: "Round cap reached",
+      detail: "Copilot review rounds are exhausted for this clean PR head, so the loop should move to pre_approval_gate instead of requesting another Copilot review.",
+      nextAction: "Run or confirm the current-head pre_approval_gate rather than re-requesting Copilot review.",
+    };
+  }
+
+  if (copilotState === "round_cap_reached") {
+    return {
+      headline: "Round cap reached",
+      detail: "Copilot review rounds are exhausted for this PR head while unresolved feedback or CI problems still block convergence, so no further Copilot re-requests are possible.",
+      nextAction: "Resolve the remaining feedback or CI blockers without requesting another Copilot review.",
+    };
+  }
+
+  if (statusClass === "done" || outerAction === "done" || copilotState === "done") {
+    return {
+      headline: "PR complete",
+      detail: "The current inspection says this PR is in a terminal done state.",
+      nextAction: "Confirm merge/readiness context or inspect the raw snapshot for terminal evidence.",
     };
   }
 

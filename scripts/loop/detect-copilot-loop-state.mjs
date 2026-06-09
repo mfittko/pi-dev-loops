@@ -271,6 +271,8 @@ function hasSubmittedCopilotReviewOffCurrentHead(reviewSummary, currentHeadSha) 
   }
   return false;
 }
+
+
 export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride, localValidationHeadSha, draftGateResetAtMs }, { env = process.env, ghCommand = "gh" } = {}) {
   const prData = await fetchPrView({ repo, pr }, { env, ghCommand });
   if (prData === null) {

@@ -760,6 +760,67 @@ test("renderInspectRunViewerHtml blocks approval-oriented language for same-head
   assert.doesNotMatch(html, /Ready to re-request Copilot review/);
 });
 
+test("renderInspectRunViewerHtml shows round-cap messaging for round_cap_reached state", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "continue_current_wait",
+      outerAction: "reenter_copilot_loop",
+      statusClass: "blocked",
+      layers: {
+        copilot: {
+          currentState: "round_cap_reached",
+          allowedTransitions: [],
+          loopDisposition: "blocked",
+          terminal: true,
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Round cap reached/);
+  assert.match(html, /unresolved feedback or CI problems still block convergence/i);
+  assert.match(html, /no further Copilot re-requests are possible/i);
+  assert.doesNotMatch(html, /Ready to re-request Copilot review/);
+});
+
+test("renderInspectRunViewerHtml shows round-cap fallback messaging for round_cap_clean_fallback", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot({
+      outerState: "continue_current_wait",
+      outerAction: "reenter_copilot_loop",
+      statusClass: "done",
+      layers: {
+        copilot: {
+          currentState: "round_cap_clean_fallback",
+          allowedTransitions: [],
+          loopDisposition: "done",
+          terminal: true,
+        },
+        reviewer: {
+          currentState: "waiting_for_review_request",
+          scope: { mode: "all_reviewers", reviewerLogin: null },
+          allowedTransitions: ["review_requested"],
+        },
+        steering: { status: "unavailable", reason: "no_steering_locator" },
+      },
+    }),
+  });
+
+  assert.match(html, /Round cap reached/);
+  assert.match(html, /move to pre_approval_gate instead of requesting another Copilot review/i);
+  assert.doesNotMatch(html, /Ready to re-request Copilot review/);
+});
+
 test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and needs_reconcile in the banner", () => {
   const liveOwnerHtml = renderInspectRunViewerHtml({
     repo: "owner/repo",
@@ -769,8 +830,10 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
       outerAction: "continue_wait",
       layers: {
         copilot: {
-          currentState: "ready_to_rerequest_review",
-          allowedTransitions: ["waiting_for_copilot_review", "review_request_unavailable", "done"],
+          currentState: "round_cap_clean_fallback",
+          allowedTransitions: [],
+          loopDisposition: "done",
+          terminal: true,
         },
         reviewer: {
           currentState: "review_requested",
@@ -796,8 +859,10 @@ test("renderInspectRunViewerHtml preserves stay_with_current_live_owner and need
       needsAttention: true,
       layers: {
         copilot: {
-          currentState: "waiting_for_copilot_review",
-          allowedTransitions: ["unresolved_feedback_present", "ready_to_rerequest_review", "waiting_for_ci"],
+          currentState: "round_cap_clean_fallback",
+          allowedTransitions: [],
+          loopDisposition: "done",
+          terminal: true,
         },
         reviewer: {
           currentState: "waiting_for_review_request",
