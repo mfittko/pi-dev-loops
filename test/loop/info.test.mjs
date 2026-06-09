@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -65,7 +66,7 @@ test("info.mjs --json with --help still shows usage text", async () => {
   assert.ok(stdout.includes("Usage:"));
 });
 
-// ── Integration: issue mode (with gh stubs) ──────────────────────────
+// ── Integration: issue mode (with gh stubs + git repo) ───────────────
 
 test("info.mjs --issue produces human-readable output with gh stubs", async () => {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "info-test-issue-"));
@@ -73,6 +74,11 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
     const repoSlug = "test-owner/test-repo";
     const issueNumber = 42;
     const issueBody = "## Summary\nTest issue\n\n## Acceptance Criteria\n- It works";
+
+    // Initialize temp git repo with origin remote matching repoSlug
+    // so the startup resolver can auto-detect the repo slug
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", `https://github.com/${repoSlug}.git`], { cwd: tmpDir, stdio: "ignore" });
 
     const ghPath = path.join(tmpDir, "gh");
     const ghScript = [
@@ -96,6 +102,7 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
       `  }`,
       `  process.exit(1);`,
       `}`,
+      `// gh pr view for linked PR detection (won't be called if no linked PR)`,
       `process.exit(1);`,
     ].join("\n");
 
@@ -111,6 +118,9 @@ test("info.mjs --issue produces human-readable output with gh stubs", async () =
     assert.ok(stdout.includes(`Issue #${issueNumber}`), `Expected "Issue #${issueNumber}" in:\n${stdout}`);
     assert.ok(stdout.includes("Test issue title"), `Expected title in:\n${stdout}`);
     assert.ok(stdout.includes("OPEN"), `Expected OPEN in:\n${stdout}`);
+    // Assert acceptance-criteria fields from startup resolver
+    assert.ok(stdout.includes("Strategy:") || stdout.includes("Loop state:") || stdout.includes("Route:"),
+      `Expected strategy/route/next-action fields in:\n${stdout}`);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
@@ -123,6 +133,9 @@ test("info.mjs --issue --json produces valid JSON with gh stubs", async () => {
   try {
     const repoSlug = "test-owner/test-repo";
     const issueNumber = 1;
+
+    execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", `https://github.com/${repoSlug}.git`], { cwd: tmpDir, stdio: "ignore" });
 
     const ghPath = path.join(tmpDir, "gh");
     const ghScript = [

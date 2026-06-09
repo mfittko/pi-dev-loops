@@ -6,7 +6,7 @@ import { buildParseError, formatCliError, isDirectCliRun } from "../_core-helper
 import { requireOptionValue, parsePositiveInteger } from "../_cli-primitives.mjs";
 import { detectRepoSlug, parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
-// REPO_ROOT must resolve to the git repo root (two levels up from scripts/loop/)
+// REPO_ROOT resolves to the git repo root (scripts/loop/info.mjs → scripts/ → repo/)
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)), "..");
 
 const USAGE = `Usage:
@@ -48,11 +48,11 @@ function validateRepo(repo) {
     throw parseError("Repo auto-detection failed. Set origin remote or use --repo.");
   }
   try {
-    parseRepoSlug(repo);
-  } catch {
-    throw parseError(`Invalid repo slug "${repo}". Must match <owner/name>.`);
+    // Normalize (trim) the slug and validate structure
+    return parseRepoSlug(repo, { lowercase: true });
+  } catch (err) {
+    throw parseError(`Invalid repo slug: ${err instanceof Error ? err.message : String(err)}`);
   }
-  return repo;
 }
 
 function ghJson(args, cwd) {
@@ -105,6 +105,8 @@ function formatPrSummary(prData, handoffResult) {
     if (s.copilotReviewOnCurrentHead) {
       lines.push(`  Copilot review: requested on current head`);
     }
+  } else if (handoffResult?.error) {
+    lines.push(`  Handoff: unavailable (${handoffResult.error})`);
   }
   
   if (handoffResult?.action) {
@@ -136,6 +138,8 @@ function formatIssueSummary(issueData, startupBundle, linkedPrData) {
     if (bundle.selectedStrategy) lines.push(`  Strategy: ${bundle.selectedStrategy}`);
     if (bundle.routeKind) lines.push(`  Route: ${bundle.routeKind}`);
     if (bundle.nextAction) lines.push(`  Next: ${bundle.nextAction}`);
+  } else if (startupBundle?.error) {
+    lines.push(`  Startup: unavailable (${startupBundle.error})`);
   }
   
   if (issueData.body) {
@@ -172,8 +176,8 @@ function buildPrInfo(prNumber, repo, cwd) {
   try {
     const handoffScript = path.join(REPO_ROOT, "scripts/loop/copilot-pr-handoff.mjs");
     handoffResult = runNode(handoffScript, ["--pr", String(prNumber), "--repo", repo, "--watch-status", "idle"], cwd);
-  } catch {
-    // Handoff unavailable — still show PR metadata
+  } catch (err) {
+    handoffResult = { error: err instanceof Error ? err.message : String(err) };
   }
   
   return { prData, handoffResult };
@@ -182,7 +186,8 @@ function buildPrInfo(prNumber, repo, cwd) {
 function buildIssueInfo(issueNumber, repo, cwd) {
   const issueData = ghJson(["issue", "view", String(issueNumber), "--repo", repo, "--json", "number,title,body,state,labels,assignees,milestone,url"], cwd);
   
-  // Run startup resolver with synthetic PI_SUBAGENT_RUN_ID and explicit --repo
+  // Run startup resolver with synthetic PI_SUBAGENT_RUN_ID to avoid
+  // async-start contract rejection for GitHub-first issue routes.
   let startupBundle = null;
   try {
     const startupScript = path.join(REPO_ROOT, "scripts/loop/resolve-dev-loop-startup.mjs");
@@ -191,8 +196,8 @@ function buildIssueInfo(issueNumber, repo, cwd) {
       cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env,
     });
     startupBundle = JSON.parse(raw);
-  } catch {
-    // Startup resolver unavailable — still show issue metadata
+  } catch (err) {
+    startupBundle = { error: err instanceof Error ? err.message : String(err) };
   }
   
   let linkedPrInfo = null;
@@ -206,7 +211,9 @@ function buildIssueInfo(issueNumber, repo, cwd) {
       try {
         const handoffScript = path.join(REPO_ROOT, "scripts/loop/copilot-pr-handoff.mjs");
         handoffResult = runNode(handoffScript, ["--pr", String(linkage.prNumber), "--repo", repo, "--watch-status", "idle"], cwd);
-      } catch { /* handoff unavailable */ }
+      } catch {
+        handoffResult = null;
+      }
       
       linkedPrInfo = {
         ...prData,
@@ -230,6 +237,7 @@ export async function runCli(argv = process.argv.slice(2), { stdout = process.st
   
   const cwd = process.cwd();
   const rawRepo = opts.repo || detectRepoSlug(cwd);
+  // validateRepo normalizes (trims) the slug
   const repo = validateRepo(rawRepo);
   
   if (opts.issue !== undefined) {
