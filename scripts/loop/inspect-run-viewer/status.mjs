@@ -208,8 +208,8 @@ export function renderOuterLoopSummarySection(snapshot) {
   });
 }
 
-export function renderCopilotLayerSection(layer) {
-  const snapshot = arguments[1] ?? null;
+export function renderCopilotLayerSection(layer, snapshot = null) {
+  
   const loopIterationEntries = buildCopilotLoopIterationEntries(snapshot);
 
   if (layer === null || layer === undefined) {

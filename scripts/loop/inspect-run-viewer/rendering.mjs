@@ -227,6 +227,7 @@ export function renderInspectRunViewerHtml({
       .handoff-badge-danger { border-color: #efb0b0; background: #fff0f0; color: #9f2c2c; }
       .handoff-badge-info { border-color: #b5cdef; background: #edf4ff; color: #2456a6; }
       .handoff-badge-muted { border-color: #d5dde7; background: #f5f7fa; color: #5e7283; }
+      .handoff-badge-neutral { border-color: #d5dde7; background: #f5f7fa; color: #5e7283; }
       .handoff-next-action { font-size: 1rem; line-height: 1.55; color: #1f354b; padding: 0.85rem 0.95rem; border: 1px solid #dce8f5; border-radius: 0.8rem; background: linear-gradient(180deg, #fbfdff 0%, #f4f9ff 100%); }
       .handoff-next-action p { margin: 0; }
       .handoff-subsection + .handoff-subsection { margin-top: 0.95rem; }
@@ -311,10 +312,10 @@ export function renderInspectRunViewerHtml({
           : `${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
             <div class="viewer-tab-shell" role="tablist" aria-label="Inspect run viewer tabs">
               <div class="viewer-tabs">
-                <button class="viewer-tab active" data-tab="graph" onclick="switchTab('graph')">Graph</button>
-                <button class="viewer-tab" data-tab="overview" onclick="switchTab('overview')">Overview</button>
-                <button class="viewer-tab" data-tab="layers" onclick="switchTab('layers')">Layers</button>
-                <button class="viewer-tab" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
+                <button id="tab-btn-graph" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-graph" data-tab="graph" onclick="switchTab('graph')">Graph</button>
+                <button id="tab-btn-overview" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-overview" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+                <button id="tab-btn-layers" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-layers" data-tab="layers" onclick="switchTab('layers')">Layers</button>
+                <button id="tab-btn-handoff" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-handoff" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
               </div>
             </div>
             <div class="tab-content active" id="tab-graph">
@@ -326,7 +327,7 @@ export function renderInspectRunViewerHtml({
                     <p>Authoritative Mermaid lane graph. Use zoom controls, drag, and graph guide to inspect current and next-state cues.</p>
                   </div>
                   ${graph === null
-                    ? `<p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p><p>Snapshot unavailable, so no state graph can be rendered yet. Manual reload only.</p>`
+                    ? `<p>${escapeHtml(error?.message ?? "Unable to load inspect-run snapshot.")}</p><p>Snapshot unavailable, so no state graph can be rendered yet. Use the Reload snapshot control to refresh.</p>`
                     : `<div class="viewer-graph-body">${renderStateVisualizationSection(normalizedSnapshot, graph)}</div>`}
                 </article>
               </section>
@@ -352,9 +353,17 @@ export function renderInspectRunViewerHtml({
     ${renderInboxShellScript()}
     <script>
       function switchTab(tabName) {
-        document.querySelectorAll('.viewer-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.viewer-tab').forEach(t => {
+          t.classList.remove('active');
+          t.setAttribute('aria-selected', 'false');
+          t.setAttribute('tabindex', '-1');
+        });
+        
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        document.querySelector('.viewer-tab[data-tab="' + tabName + '"]').classList.add('active');
+        const activeTab = document.querySelector('.viewer-tab[data-tab="' + tabName + '"]');
+        activeTab.classList.add('active');
+        activeTab.setAttribute('aria-selected', 'true');
+        activeTab.setAttribute('tabindex', '0');
         document.getElementById('tab-' + tabName).classList.add('active');
       }
     </script>

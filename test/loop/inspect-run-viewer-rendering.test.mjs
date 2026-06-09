@@ -818,7 +818,8 @@ test("renderInspectRunViewerHtml renders unavailable snapshot and malformed targ
   assert.match(html, /Snapshot unavailable/);
   assert.match(html, /target\.pr must be a positive integer/);
   assert.match(html, /no state graph can be rendered yet/i);
-  assert.match(html, /manual reload only/i);
+  assert.match(html, /Use the Reload snapshot control to refresh/i);
+  assert.match(html, /href="\/snapshot\.json\?repo=bad(?:\+|%20)target&amp;pr=x"/);
 });
 
 
