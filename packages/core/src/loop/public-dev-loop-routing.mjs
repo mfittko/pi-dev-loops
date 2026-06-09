@@ -943,11 +943,6 @@ function validateIssueLinkageResolution(canonicalState, issueLinkageResolution) 
       || issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE;
   }
 
-  // Operator bypass is valid for any issue target.
-  if (issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS) {
-    return true;
-  }
-
   if (canonicalState.target.linkedPr !== null) {
     return issueLinkageResolution === DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.RESOLVED_LINKED_PR;
   }
