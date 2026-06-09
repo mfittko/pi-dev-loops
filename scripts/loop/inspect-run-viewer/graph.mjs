@@ -456,6 +456,7 @@ export function renderMermaidBootScript() {
       (() => {
         const frames = Array.from(document.querySelectorAll(".state-graph-frame"));
         const graphs = Array.from(document.querySelectorAll(".mermaid-state-graph"));
+        const renderedGraphs = new WeakSet();
         const clampScale = (value) => Math.max(0.5, Math.min(5, value));
         const updateFrameScale = (frame, requestedScale) => {
           const scale = clampScale(requestedScale);
@@ -580,6 +581,38 @@ export function renderMermaidBootScript() {
             graph.replaceWith(fallback);
           });
         };
+        const isGraphVisible = (graph) => {
+          if (!(graph instanceof HTMLElement)) {
+            return false;
+          }
+          const panel = graph.closest(".tab-content");
+          if (panel && !panel.classList.contains("active")) {
+            return false;
+          }
+          const rect = graph.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        };
+        const finalizeRenderedGraph = async (graph) => {
+          graph.dataset.rendered = "settling";
+          const frame = graph.closest(".state-graph-frame");
+          if (!frame) {
+            graph.dataset.rendered = "true";
+            renderedGraphs.add(graph);
+            return;
+          }
+          updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
+          const graphViewport = frame.querySelector(".mermaid-state-graph");
+          if (graphViewport) {
+            const focused = await fitGraphToCurrentState(frame, graphViewport);
+            if (!focused) {
+              await settleGraphViewport();
+            }
+          } else {
+            await settleGraphViewport();
+          }
+          graph.dataset.rendered = "true";
+          renderedGraphs.add(graph);
+        };
 
         frames.forEach((frame) => {
           updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
@@ -672,29 +705,30 @@ export function renderMermaidBootScript() {
           },
         });
 
-        window.mermaid.run({ nodes: graphs }).then(async () => {
-          await Promise.all(graphs.map(async (graph) => {
-            graph.dataset.rendered = "settling";
-            const frame = graph.closest(".state-graph-frame");
-            if (!frame) {
-              graph.dataset.rendered = "true";
+        let pendingRender = Promise.resolve();
+        const queueVisibleGraphRender = () => {
+          pendingRender = pendingRender.then(async () => {
+            const visibleGraphs = graphs.filter((graph) => !renderedGraphs.has(graph) && isGraphVisible(graph));
+            if (visibleGraphs.length === 0) {
               return;
             }
-            updateFrameScale(frame, Number(frame.dataset.graphScale || 1));
-            const graphViewport = frame.querySelector(".mermaid-state-graph");
-            if (graphViewport) {
-              const focused = await fitGraphToCurrentState(frame, graphViewport);
-              if (!focused) {
-                await settleGraphViewport();
-              }
-            } else {
-              await settleGraphViewport();
-            }
-            graph.dataset.rendered = "true";
-          }));
-        }).catch(() => {
-          renderFallback("Mermaid could not render this snapshot safely. Use the details below or open /snapshot.json.");
+            await window.mermaid.run({ nodes: visibleGraphs });
+            await Promise.all(visibleGraphs.map((graph) => finalizeRenderedGraph(graph)));
+          }).catch(() => {
+            renderFallback("Mermaid could not render this snapshot safely. Use the details below or open /snapshot.json.");
+          });
+          return pendingRender;
+        };
+
+        document.addEventListener("inspect-run-viewer:tabchange", () => {
+          window.requestAnimationFrame(() => {
+            void queueVisibleGraphRender();
+          });
         });
+        window.addEventListener("load", () => {
+          void queueVisibleGraphRender();
+        });
+        void queueVisibleGraphRender();
       })();
     </script>`;
 }

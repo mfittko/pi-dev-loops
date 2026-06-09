@@ -106,6 +106,27 @@ test("renderInspectRunViewerHtml hides pagination controls in the collapsed side
   assert.match(html, /\.assigned-pr-inbox\[data-sidebar-collapsed="true"\] \.assigned-pr-pagination \{ display: none; \}/);
 });
 
+test("renderInspectRunViewerHtml keeps overview first and tab buttons aligned with tab panels", () => {
+  const html = renderInspectRunViewerHtml({
+    repo: "owner/repo",
+    target: { repo: "owner/repo", pr: 55 },
+    snapshot: makeSnapshot(),
+    inboxItems: [
+      {
+        target: { repo: "owner/repo", pr: 55 },
+        title: "Selected PR",
+        snapshot: makeSnapshot(),
+      },
+    ],
+  });
+
+  assert.match(html, /<button id="tab-btn-overview" class="viewer-tab active"[^>]*aria-controls="tab-overview"[^>]*>Overview<\/button>\s*<button id="tab-btn-graph" class="viewer-tab"[^>]*aria-controls="tab-graph"[^>]*>Graph<\/button>\s*<button id="tab-btn-layers" class="viewer-tab"[^>]*aria-controls="tab-layers"[^>]*>Layers<\/button>\s*<button id="tab-btn-handoff" class="viewer-tab"[^>]*aria-controls="tab-handoff"[^>]*>Agent handoff<\/button>/);
+  assert.match(html, /<div class="tab-content active" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">/);
+  assert.match(html, /<div class="tab-content" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">/);
+  assert.match(html, /document\.dispatchEvent\(new CustomEvent\('inspect-run-viewer:tabchange', \{ detail: \{ tabName \} \}\)\);/);
+  assert.match(html, /document\.addEventListener\("inspect-run-viewer:tabchange", \(\) => \{/);
+});
+
 test("renderInspectRunViewerHtml renders required top-level fields for authoritative snapshot and links to raw JSON", () => {
   const html = renderInspectRunViewerHtml({
     repo: "owner/repo",

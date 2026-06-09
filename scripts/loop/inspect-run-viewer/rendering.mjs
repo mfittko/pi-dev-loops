@@ -236,10 +236,10 @@ export function renderInspectRunViewerHtml({
       .handoff-empty-state h2 { margin: 0; line-height: 1.2; }
       .handoff-empty-state p { margin: 0; line-height: 1.6; }
       .handoff-kv { display: grid; grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr); gap: 0.8rem 1rem; margin: 0; }
-      .handoff-kv-compact { grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr); }
+      .handoff-kv-compact { grid-template-columns: minmax(9rem, 15rem) minmax(0, 1fr); }
       .handoff-kv-row { display: contents; }
-      .handoff-kv dt { font-size: 0.79rem; font-weight: 700; line-height: 1.4; color: #4c6478; }
-      .handoff-kv dd { margin: 0; min-width: 0; line-height: 1.55; color: #23384d; }
+      .handoff-kv dt { font-size: 0.79rem; font-weight: 700; line-height: 1.4; color: #4c6478; word-break: break-word; }
+      .handoff-kv dd { margin: 0; min-width: 0; line-height: 1.55; color: #23384d; word-break: break-word; }
       .handoff-badge { display: inline-flex; align-items: center; justify-content: center; padding: 0.28rem 0.7rem; border-radius: 999px; border: 1px solid #b8c9db; background: #f6f9fc; color: #355061; font-size: 0.84rem; font-weight: 700; line-height: 1.25; }
       .handoff-badge-success { border-color: #9dd4a2; background: #edf8ee; color: #25632a; }
       .handoff-badge-warning { border-color: #f2c37b; background: #fff4de; color: #915800; }
@@ -347,13 +347,16 @@ export function renderInspectRunViewerHtml({
           : `${renderCurrentStateBanner(normalizedSnapshot, target, stateLabel, graph, effectiveSelectedTitle)}
             <div class="viewer-tab-shell" role="tablist" aria-label="Inspect run viewer tabs">
               <div class="viewer-tabs">
-                <button id="tab-btn-graph" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-graph" data-tab="graph" onclick="switchTab('graph')">Graph</button>
-                <button id="tab-btn-overview" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-overview" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+                <button id="tab-btn-overview" class="viewer-tab active" role="tab" aria-selected="true" aria-controls="tab-overview" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+                <button id="tab-btn-graph" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-graph" data-tab="graph" onclick="switchTab('graph')">Graph</button>
                 <button id="tab-btn-layers" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-layers" data-tab="layers" onclick="switchTab('layers')">Layers</button>
                 <button id="tab-btn-handoff" class="viewer-tab" role="tab" aria-selected="false" aria-controls="tab-handoff" data-tab="handoff" onclick="switchTab('handoff')">Agent handoff</button>
               </div>
             </div>
-            <div class="tab-content active" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">
+            <div class="tab-content active" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">
+              ${renderOverviewSection(normalizedSnapshot, target, stateLabel)}
+            </div>
+            <div class="tab-content" id="tab-graph" role="tabpanel" aria-labelledby="tab-btn-graph">
               <section class="viewer-tab-section" aria-label="Graph">
                 <article class="handoff-card handoff-card-emphasis viewer-card">
                   <p class="handoff-card-kicker">Graph</p>
@@ -366,9 +369,6 @@ export function renderInspectRunViewerHtml({
                     : `<div class="viewer-graph-body">${renderStateVisualizationSection(normalizedSnapshot, graph)}</div>`}
                 </article>
               </section>
-            </div>
-            <div class="tab-content" id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">
-              ${renderOverviewSection(normalizedSnapshot, target, stateLabel)}
             </div>
             <div class="tab-content" id="tab-layers" role="tabpanel" aria-labelledby="tab-btn-layers">
               <section class="viewer-tab-section" aria-label="Layers">
@@ -392,14 +392,17 @@ export function renderInspectRunViewerHtml({
           t.classList.remove('active');
           t.setAttribute('aria-selected', 'false');
         });
-        
+
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         const activeTab = document.querySelector('.viewer-tab[data-tab="' + tabName + '"]');
         if (!activeTab) { return; }
         activeTab.classList.add('active');
         activeTab.setAttribute('aria-selected', 'true');
-        const panel = document.getElementById('tab-' + tabName); if (panel) { panel.classList.add('active');
+        const panel = document.getElementById('tab-' + tabName);
+        if (panel) {
+          panel.classList.add('active');
         }
+        document.dispatchEvent(new CustomEvent('inspect-run-viewer:tabchange', { detail: { tabName } }));
       }
     </script>
     ${graph === null ? "" : renderMermaidBootScript()}
