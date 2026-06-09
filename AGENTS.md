@@ -20,6 +20,6 @@
 - Implement one phase at a time; if durable repo docs explicitly record a reprioritization exception, follow [Implementation State](docs/IMPLEMENTATION_STATE.md) and the active phase doc.
 - Keep compatibility surface minimal; do not add legacy aliases, wrappers, or duplicate docs unless explicitly requested.
 - A question requires an answer, not an action. When the user asks a question — even one implying criticism or correction — answer first before taking any action. Do not treat a question as implicit authorization to act.
-- Keep workflow procedure out of AGENTS; put shared contracts under `skills/docs/`.
+- Keep workflow procedure out of AGENTS; put shared contracts under `skills/docs/`. Brief, high-signal main-agent dispatch contracts (e.g., sequential dispatch) are the narrow exception — they stay in AGENTS.md because AGENTS.md is the canonical main-agent instruction surface.
 - No PR scope has gate exemptions (#579): see skills/dev-loop/SKILL.md "No gate exemptions" section.
 - **Sequential dispatch contract (#693):** When the user says "sequential", "one at a time", "serially", or "in order" with multiple `dev-loop` targets, the main agent must dispatch `dev-loop` async subagents one at a time — each blocking on prior completion before the next starts. This is deterministic: the keyword must always produce serial execution, never concurrent. The main agent is the sequencer; do not dispatch all targets at once.
