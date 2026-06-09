@@ -136,6 +136,19 @@ function normalizeIssueCommentsPayload(payload) {
   }
   return payload;
 }
+function normalizePrReviewsPayload(payload) {
+  if (!Array.isArray(payload)) return [];
+  const flat = payload.every((entry) => Array.isArray(entry)) ? payload.flat() : payload;
+  return flat
+    .filter((r) => r && typeof r === "object" && typeof r.body === "string" && r.body.trim().length > 0)
+    .map((r) => ({
+      id: r.id,
+      body: r.body,
+      html_url: typeof r.html_url === "string" ? r.html_url : null,
+      created_at: typeof r.submitted_at === "string" ? r.submitted_at : null,
+      updated_at: typeof r.submitted_at === "string" ? r.submitted_at : null,
+    }));
+}
 function emptyGateSummary() {
   return {
     visible: false,
@@ -255,8 +268,20 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
   if (!currentHeadSha) {
     throw new Error("Invalid gh pr view payload: missing headRefOid");
   }
-  const commentSummary = summarizeGateReviewComments(commentsPayload);
-  const markerSummary = summarizeGateReviewCommentMarkers(commentsPayload, { headSha: currentHeadSha });
+  // Also scan PR reviews for gate comments posted via the review API.
+  // This prevents duplicates when an escape-hatch path posted a gate verdict
+  // as a PR review rather than an issue comment (root causes 3 & 5 from issue #690).
+  let prReviews = [];
+  try {
+    const reviewsRaw = await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/pulls/${options.pr}/reviews?per_page=100`], { env, ghCommand });
+    prReviews = normalizePrReviewsPayload(reviewsRaw);
+  } catch {
+    // Graceful fallback: PR reviews fetch failure is non-fatal.
+    // We continue with issue comments only.
+  }
+  const allComments = [...commentsPayload, ...prReviews];
+  const commentSummary = summarizeGateReviewComments(allComments);
+  const markerSummary = summarizeGateReviewCommentMarkers(allComments, { headSha: currentHeadSha });
   return {
     ok: true,
     repo: options.repo,
