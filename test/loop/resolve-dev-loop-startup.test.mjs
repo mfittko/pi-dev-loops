@@ -866,6 +866,7 @@ test("buildAutoResolvedInput detects Copilot authorship from linked PR author", 
       env: {
         ...ghStub.env,
         PI_WORKTREE_BYPASS: "1",
+        PI_SUBAGENT_RUN_ID: "test-run-copilot-author",
       },
     });
     assert.equal(result.code, 0, result.stderr);
@@ -901,6 +902,7 @@ test("buildAutoResolvedInput detects external_human authorship from linked PR au
       env: {
         ...ghStub.env,
         PI_WORKTREE_BYPASS: "1",
+        PI_SUBAGENT_RUN_ID: "test-run-external-author",
       },
     });
     assert.equal(result.code, 0, result.stderr);
