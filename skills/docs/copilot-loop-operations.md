@@ -168,7 +168,7 @@ When you do hand work to Copilot:
 
 Follow the PR description contract (see [Agent Instructions](../../AGENTS.md) if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals, and `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge.
 
-New PRs in this workflow must be opened as **draft** PRs first when the repository enables `.pi/dev-loop/settings.yaml` `workflow.requireDraftFirst`. The built-in shipped default remains permissive; this repo opts in. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
+New PRs in this workflow must be opened as **draft** PRs first when the repository enables `.devloops at repo root` `workflow.requireDraftFirst`. The built-in shipped default remains permissive; this repo opts in. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
 
 Only use `node <resolved-skill-scripts>/github/create-draft-pr.mjs` when authoritative issue↔PR resolution says there is no already-open linked PR. If a PR already exists, reuse/update that canonical PR instead of opening another one. This wrapper preserves the underlying `gh pr create` output contract while enforcing draft-first mechanically.
 

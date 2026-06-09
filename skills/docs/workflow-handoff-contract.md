@@ -15,7 +15,7 @@ template.
 | Resolver output (`resolve-dev-loop-startup.mjs` bundle) | `target`, `nextAction`, `requiredReads`, `executionMode` |
 | Caller options (`repoRoot`, `worktreeCwd`) | `cwd` |
 | Gate state (detectors) + strategy defaults | `currentGate`, `worktreeRequired` |
-| Settings (`.pi/dev-loop/settings.yaml` + `defaults.yaml`) | `gateConfig`, `stopRules`, `asyncStartMode`, `requireDraftFirst`, `maxCopilotRounds` |
+| Settings (`.devloops at repo root` + `defaults.yaml`) | `gateConfig`, `stopRules`, `asyncStartMode`, `requireDraftFirst`, `maxCopilotRounds` |
 | Gate state (detectors) | `currentHeadSha`, `ciStatus`, `unresolvedThreadCount`, `copilotRoundCount` |
 
 ## Acceptance templates

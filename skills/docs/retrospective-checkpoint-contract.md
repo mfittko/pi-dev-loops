@@ -1,6 +1,6 @@
 # Retrospective checkpoint contract
 
-This document defines the enforcement seam for the post-run behavioral retrospective checkpoint after qualifying async `dev-loop` completions in this repository. Whether a missing checkpoint blocks the next qualifying start/resume is controlled by `.pi/dev-loop/settings.yaml` `workflow.requireRetrospective`; shipped defaults remain permissive and this repo opts in.
+This document defines the enforcement seam for the post-run behavioral retrospective checkpoint after qualifying async `dev-loop` completions in this repository. Whether a missing checkpoint blocks the next qualifying start/resume is controlled by `.devloops at repo root` `workflow.requireRetrospective`; shipped defaults remain permissive and this repo opts in.
 
 ## Relationship to formal dev mode
 
@@ -89,7 +89,7 @@ If the gate result is `needs_reconcile`, the caller must not proceed with the pr
 
 ## Merge gate (`requireRetrospectiveGate`)
 
-When `workflow.requireRetrospectiveGate` is enabled in `.pi/dev-loop/settings.yaml`, merge-ready progression is blocked after `pre_approval_gate` unless the retrospective checkpoint:
+When `workflow.requireRetrospectiveGate` is enabled in `.devloops at repo root`, merge-ready progression is blocked after `pre_approval_gate` unless the retrospective checkpoint:
 - has `state: "complete"`
 - includes a `behavioralReview` with `mergeApproved: true`, `followedWorkingAgreement` (boolean), `gateQualityAcceptable` (boolean), and `drifts` (array)
 - includes `mergeRecommendation` (non-empty string)
@@ -109,7 +109,7 @@ The enforcement function is `evaluateRetrospectiveMergeApproval(checkpoint)` in 
 ### Configuration
 
 ```yaml
-# .pi/dev-loop/settings.yaml
+# .devloops at repo root
 workflow:
   requireRetrospective: true        # startup/resume gate
   requireRetrospectiveGate: true    # merge gate after pre_approval_gate
