@@ -423,15 +423,17 @@ async function findConfigFile(basePaths) {
 
   for (const basePath of candidates) {
     // Try bare path first (e.g., .devloops without extension).
-    // Only ENOENT falls through to extensions; success returns immediately.
-    // Other errors (EISDIR, EACCES) also fall through so extension variants
-    // like .devloops.yaml are still discoverable.
+    // Success returns immediately.
+    // ENOENT: file genuinely absent — try extension variants.
+    // Other errors (EISDIR, EACCES): file exists but is unreadable —
+    // try extension variants as fallback, but surface the original
+    // error if no extension variant exists.
     let bareData = null;
+    let bareError = null;
     try {
       bareData = await readConfigFile(basePath);
-    } catch {
-      // Bare path is unreadable (EISDIR, EACCES, etc.) — fall through
-      // to extension variants instead of aborting the search.
+    } catch (err) {
+      bareError = err;
     }
     if (bareData !== null) return { path: basePath, data: bareData };
 
@@ -440,6 +442,10 @@ async function findConfigFile(basePaths) {
       const data = await readConfigFile(filePath);
       if (data !== null) return { path: filePath, data };
     }
+
+    // No extension variant found either — if the bare path exists but is
+    // unreadable, surface that error rather than silently falling back.
+    if (bareError) throw bareError;
   }
 
   return { path: candidates[0] + ".yaml", data: null };
