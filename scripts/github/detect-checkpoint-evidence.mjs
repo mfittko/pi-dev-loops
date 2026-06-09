@@ -270,7 +270,7 @@ export async function detectCheckpointEvidence(options, { env = process.env, ghC
   }
   // Also scan PR reviews for gate comments posted via the review API.
   // This prevents duplicates when an escape-hatch path posted a gate verdict
-  // as a PR review rather than an issue comment (root causes 3 & 5 from issue #690).
+  // as a PR review rather than an issue comment (root cause 3 from issue #692).
   let prReviews = [];
   try {
     const reviewsRaw = await runGhJson(["api", "--paginate", "--slurp", `repos/${options.repo}/pulls/${options.pr}/reviews?per_page=100`], { env, ghCommand });

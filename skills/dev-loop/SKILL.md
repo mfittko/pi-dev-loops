@@ -108,7 +108,7 @@ Do not preload route packs before the resolver selects the strategy.
 
 ## No gate exemptions
 
-All PRs must pass the full gate pipeline before merge. No scope is exempt: docs-only, tooling, meta, configuration, internal-process — all require `draft_gate`, Copilot review, and current-head `pre_approval_gate` evidence.
+All PRs must pass the full gate pipeline before merge. No scope is exempt: docs-only, tooling, meta, configuration, internal-process — all require `draft_gate`, current-head `pre_approval_gate` evidence, and Copilot review (except internal-only PRs detected by path pattern, which skip the Copilot convergence requirement).
 
 ## Authority boundary
 
