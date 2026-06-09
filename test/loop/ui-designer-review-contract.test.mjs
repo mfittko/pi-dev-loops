@@ -153,3 +153,27 @@ test('validateUiDesignerReviewInput fails closed for unsupported review modes', 
     missing: ['uiReviewMode'],
   });
 });
+
+test('validateUiDesignerReviewInput fails closed when vision review lacks state.json artifacts', () => {
+  const result = validateUiDesignerReviewInput({
+    workType: 'ui',
+    uiReviewRequested: true,
+    uiReviewMode: 'vision',
+    acceptanceCriteria: ['named dashboard state renders'],
+    reviewBrief: 'Check layout and visual hierarchy.',
+    artifactBundle: {
+      sliceId: 'inspect-run-viewer',
+      namedStates: [
+        {
+          stateName: 'Current PR dashboard',
+          screenshotPath: 'test-results/ui-smoke/inspect-run-viewer/named-states/current-pr-dashboard/screenshot.png',
+          statePath: 'test-results/ui-smoke/inspect-run-viewer/named-states/current-pr-dashboard/meta.txt',
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 'blocked_incomplete_artifact_bundle');
+  assert.deepEqual(result.missing, ['artifactBundle.namedStates[0].statePath']);
+});

@@ -105,9 +105,8 @@ The loop fails closed when:
 - a named state lacks `screenshotPath` or `statePath`
 - vision mode is requested but a named state screenshot path does not end with `screenshot.png`
 - vision mode is requested but a named state state path does not end with `state.json`
-- the work is not actually a UI slice and the loop was requested anyway
+- the work is not actually a UI slice \(the loop returns a skip outcome rather than failing closed\)
 - an unsupported `uiReviewMode` value (anything other than `designer` or `vision`) fails closed with `blocked_unsupported_review_mode`
-
 
 When the work is non-UI, the loop does not trigger for non-UI work; it returns a skip outcome instead of pretending to review unrelated artifacts.
 
