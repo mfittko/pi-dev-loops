@@ -7,7 +7,7 @@ import { requireOptionValue, parsePositiveInteger } from "../_cli-primitives.mjs
 import { detectRepoSlug, parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 
 // REPO_ROOT must resolve to the git repo root (two levels up from scripts/loop/)
-const REPO_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)), "..", "..");
+const REPO_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)), "..");
 
 const USAGE = `Usage:
   dev-loops loop info --issue <number>
