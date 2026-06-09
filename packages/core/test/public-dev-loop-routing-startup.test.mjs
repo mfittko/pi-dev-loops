@@ -698,3 +698,203 @@ test("authoritative startup/resume bundle falls back to reconcile when issue sho
   assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
   assert.equal(bundle.routeKind, DEV_LOOP_ROUTE_KIND.NEEDS_RECONCILE);
 });
+
+// ---------------------------------------------------------------------------
+// Operator bypass (skipIssueOrigin)
+// ---------------------------------------------------------------------------
+
+test("operator bypass: issue target without PR resolves with operator_bypass linkage resolution", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 500 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: true },
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS);
+  assert.equal(bundle.contractTrace.decision.operatorBypass, true);
+});
+
+test("operator bypass: issue target without PR routes without requiring issueReadiness or issueAssignmentState", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 501 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: true },
+    },
+  });
+
+  // Should resolve (not reconcile), even though issueReadiness and issueAssignmentState are absent
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  assert.equal(bundle.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS);
+});
+
+test("operator bypass: PR target is unaffected (bypass does not activate for non-issue targets)", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 502 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.OPEN,
+    issueLinkageResolution: DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE,
+    loopState: "pr_followup_start",
+    acceptance: {
+      overrides: { skipIssueOrigin: true },
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  // PR target always uses not_applicable — bypass only applies to issue targets
+  assert.equal(bundle.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.NOT_APPLICABLE);
+  // operatorBypass flag is not set for non-issue targets
+  assert.equal(bundle.contractTrace.decision.operatorBypass, undefined);
+});
+
+test("operator bypass: false value is not treated as bypass", () => {
+  // Without bypass, issue target without issueLinkageResolution should fail closed
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 503 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: false },
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /linkage resolution/i);
+});
+
+test("operator bypass: absent acceptance.overrides is not treated as bypass", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 504 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /linkage resolution/i);
+});
+
+test("operator bypass: direct issueLinkageResolution operator_bypass without skipIssueOrigin fails closed", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 505 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    issueLinkageResolution: "operator_bypass",
+    loopState: "awaiting_triage",
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /linkage resolution/i);
+});
+
+test("operator bypass: local_implementation route preserves operator_bypass in issueLinkageResolution", () => {
+  // Simulate a synthetic routed result where skipIssueOrigin is active but
+  // routing would land on a PR target (the startup helper does internal routing;
+  // this test verifies the effectiveBundleIssueLinkageResolution resolution
+  // at the output layer by exercising the full bundle path with a local
+  // implementation preference that should route to local_implementation).
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 506 },
+      ownership: DEV_LOOP_ACTOR.LOCAL,
+      nextActor: DEV_LOOP_ACTOR.LOCAL,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: true },
+    },
+    targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
+  });
+
+  // With local preference, the issue should route to local_implementation (which uses a branch/phase target, not PR).
+  // The issueLinkageResolution in the output bundle should reflect operator_bypass since
+  // the canonical target remains an issue through routing.
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.RESOLVED);
+  // Local implementation strategy selected
+  assert.equal(bundle.selectedStrategy, "local_implementation");
+  // When canonical target is still issue (local_implementation branch target),
+  // operator_bypass should be emitted
+  assert.equal(bundle.issueLinkageResolution, DEV_LOOP_ISSUE_LINKAGE_RESOLUTION.OPERATOR_BYPASS);
+  assert.equal(bundle.contractTrace.decision.operatorBypass, true);
+});
+
+test("operator bypass: non-boolean skipIssueOrigin (string) fails closed", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 507 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: "yes" },
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /boolean/i);
+});
+
+test("operator bypass: non-boolean skipIssueOrigin (number) fails closed", () => {
+  const bundle = resolveAuthoritativeStartupResumeBundle({
+    currentState: {
+      target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 508 },
+      ownership: DEV_LOOP_ACTOR.COPILOT,
+      nextActor: DEV_LOOP_ACTOR.COPILOT,
+      status: DEV_LOOP_STATUS.ACTIVE,
+      authorization: DEV_LOOP_AUTHORIZATION.AUTHORIZED,
+    },
+    artifactState: DEV_LOOP_ARTIFACT_STATE.NOT_APPLICABLE,
+    loopState: "awaiting_triage",
+    acceptance: {
+      overrides: { skipIssueOrigin: 1 },
+    },
+  });
+
+  assert.equal(bundle.bundleKind, DEV_LOOP_STARTUP_RESUME_BUNDLE_KIND.NEEDS_RECONCILE);
+  assert.match(bundle.reason, /boolean/i);
+});
