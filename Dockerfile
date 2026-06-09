@@ -56,4 +56,7 @@ RUN npm ci
 # Append workspace node_modules/.bin last so global tools take precedence
 ENV PATH="${PATH}:/workspace/node_modules/.bin"
 
+
+# Run as non-root node user (base image provides this user)
+USER node
 CMD ["dev-loops"]
