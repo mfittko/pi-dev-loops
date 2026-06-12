@@ -207,7 +207,11 @@ async function fetchCurrentHeadCiEvidence({ repo, headSha, prVisibleCheckNames }
         // the cautious none override (#740).
         const visibleSignal = summarizeHeadScopedCheckRunsSignal({ check_runs: visibleRuns });
         const fullSignal = summarizeHeadScopedCheckRunsSignal(payload);
-        checkRunsSignal = { ...visibleSignal, unsupportedCompleted: fullSignal.unsupportedCompleted };
+        const excludedRuns = visibleSet
+          ? payload.check_runs.filter((run) => run.name && !visibleSet.has(run.name))
+          : [];
+        const excludedSignal = summarizeHeadScopedCheckRunsSignal({ check_runs: excludedRuns });
+        checkRunsSignal = { ...visibleSignal, unsupportedCompleted: fullSignal.unsupportedCompleted, excludedFailureDetails: excludedSignal.failureDetails ?? [] };
         checkRunsCount = payload.check_runs.length;
       }
     } catch {
@@ -240,6 +244,7 @@ async function fetchCurrentHeadCiEvidence({ repo, headSha, prVisibleCheckNames }
     }).overallStatus,
     observedZeroSuitesAndStatuses: checkRunsCount === 0 && statusesCount === 0,
     failureDetails: checkRunsSignal?.failureDetails ?? [],
+    excludedFailureDetails: checkRunsSignal?.excludedFailureDetails ?? [],
   };
 }
 function hasLocalValidationForCurrentHead(localValidationHeadSha, currentHeadSha) {
@@ -359,9 +364,13 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     );
   const prVisibleCheckNames = extractPrVisibleCheckNames(prData.statusCheckRollup);
   let currentHeadCiStatus = fallbackCiStatus;
+  let failureDetails = [];
+  let excludedFailureDetails = [];
   if (shouldRefreshCurrentHeadCi) {
     const refreshed = await fetchCurrentHeadCiEvidence({ repo, headSha: prHeadSha, prVisibleCheckNames }, { env, ghCommand });
     currentHeadCiStatus = refreshed?.status ?? "none";
+    failureDetails = refreshed?.failureDetails ?? [];
+    excludedFailureDetails = refreshed?.excludedFailureDetails ?? [];
     if (shouldPromoteCrediblyGreen({
       refreshedCurrentHeadCi: refreshed,
       fallbackCiStatus,
@@ -385,6 +394,8 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
     lastCopilotRoundMaxSignal,
     ciStatus: currentHeadCiStatus,
+    failureDetails,
+    excludedFailureDetails,
   });
 }
 export async function runCli(

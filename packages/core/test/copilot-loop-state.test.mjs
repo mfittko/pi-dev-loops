@@ -39,6 +39,8 @@ test("normalizeSnapshot returns safe defaults for an empty object", () => {
     ciStatus: "none",
     lastCopilotRoundMaxSignal: null,
     agentFixStatus: null,
+    failureDetails: [],
+    excludedFailureDetails: [],
   });
 });
 

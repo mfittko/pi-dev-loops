@@ -163,6 +163,8 @@ export function buildSnapshotFromPrFacts({
   copilotReviewRoundCount = 0,
   ciStatus,
   lastCopilotRoundMaxSignal = null,
+  failureDetails = [],
+  excludedFailureDetails = [],
 }) {
   const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
   const prMerged = prState === "MERGED";
@@ -182,6 +184,8 @@ export function buildSnapshotFromPrFacts({
     copilotReviewRoundCount,
     lastCopilotRoundMaxSignal,
     ciStatus: ciStatus ?? normalizeCiStatus(prData?.statusCheckRollup),
+    failureDetails,
+    excludedFailureDetails,
   });
 }
 
@@ -257,6 +261,8 @@ export function normalizeSnapshot(raw) {
     ciStatus: VALID_CI_STATUSES.has(raw.ciStatus) ? raw.ciStatus : "none",
     lastCopilotRoundMaxSignal: VALID_SIGNAL_LEVELS.has(raw.lastCopilotRoundMaxSignal) ? raw.lastCopilotRoundMaxSignal : null,
     agentFixStatus: raw.agentFixStatus === "applied" ? "applied" : null,
+    failureDetails: Array.isArray(raw.failureDetails) ? raw.failureDetails : [],
+    excludedFailureDetails: Array.isArray(raw.excludedFailureDetails) ? raw.excludedFailureDetails : [],
   };
 }
 

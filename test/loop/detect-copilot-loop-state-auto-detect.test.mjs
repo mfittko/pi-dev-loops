@@ -263,6 +263,7 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head pen
     assert.equal(output.state, "waiting_for_ci");
     assert.equal(output.snapshot.ciStatus, "pending");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.deepEqual(output.snapshot.excludedFailureDetails, ["copilot"]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1506,7 +1507,7 @@ test("detect-copilot-loop-state does not false-block on hidden failed head check
     // PR-visible rollup is success, so hidden head-scoped failure must not downgrade.
     assert.notEqual(output.snapshot.ciStatus, "failure");
     assert.notEqual(output.state, "blocked_needs_user_decision");
-    // Should stay waiting for CI since the hidden failure is ignored and actual visible CI is success
+    // Hidden failure correctly ignored; visible CI is success so no false block
     assert.equal(output.snapshot.ciStatus, "success");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
   } finally {
