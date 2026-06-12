@@ -471,7 +471,7 @@ test.skip("detect-copilot-loop-state accepts case-insensitive local-validation S
   }
 });
 
-test("detect-copilot-loop-state keeps zero-suite current-head CI at none without same-head local validation", async () => {
+test("detect-copilot-loop-state keeps zero-suite current-head CI at none under round cap", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-no-credibly-green-"));
 
   try {
@@ -494,13 +494,6 @@ test("detect-copilot-loop-state keeps zero-suite current-head CI at none without
               state: "COMMENTED",
               submittedAt: "2026-06-02T10:00:00Z",
               commit: { oid: "newsha" },
-            },
-            {
-              id: "r-old",
-              author: { login: "copilot-pull-request-reviewer[bot]" },
-              state: "CHANGES_REQUESTED",
-              submittedAt: "2026-06-01T10:00:00Z",
-              commit: { oid: "oldsha" },
             },
           ],
           statusCheckRollup: [
