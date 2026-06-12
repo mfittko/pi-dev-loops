@@ -1987,16 +1987,50 @@ describe("shipped defaults docs and deep angle wiring", () => {
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.personas["pr-description"].persona, "review");
       assert.match(result.config.personas["pr-description"].prompt, /Summary section/i);
-      assert.match(result.config.personas["pr-description"].prompt, /Changes section/i);
-      assert.match(result.config.personas["pr-description"].prompt, /Validation section/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Validation command section/i);
       assert.match(result.config.personas["pr-description"].prompt, /Do not block on formatting/i);
       assert.match(result.config.personas["pr-description"].prompt, /linked issue acceptance criteria/i);
       assert.match(result.config.personas["pr-description"].prompt, /single sentence/i);
       assert.match(result.config.personas["pr-description"].prompt, /Closes #N/i);
       assert.match(result.config.personas["pr-description"].prompt, /operator-intended close target/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Scope and context section/i);
+      assert.match(result.config.personas["pr-description"].prompt, /File-by-file changes section/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Definition of done section/i);
+      assert.match(result.config.personas["pr-description"].prompt, /Non-goals section/i);
       assert.ok(draftAngles.includes("pr-description"), "pr-description must be in draft gate angles after settings opt-in");
       assert.equal(prDescRole.persona, "review");
       assert.equal(prDescRole.fallback, false);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("D4: pr-checklist-matrix persona resolves and appears in pre-approval gate angles after settings opt-in", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "devloop-config-D4-"));
+    try {
+      const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+      const sourceDefaults = await readFile(path.join(repoRoot, ".pi", "dev-loop", "defaults.yaml"), "utf8");
+      const sourceSettings = await readFile(path.join(repoRoot, ".devloops"), "utf8");
+      const piDir = path.join(tmpDir, ".pi", "dev-loop");
+      await mkdir(piDir, { recursive: true });
+      await writeFile(path.join(piDir, "defaults.yaml"), sourceDefaults);
+      await writeFile(path.join(tmpDir, ".devloops"), sourceSettings);
+
+      const { loadDevLoopConfig, resolveReviewerRole, resolveGateAngles } = await import("../src/config/config.mjs");
+      const result = await loadDevLoopConfig({ repoRoot: tmpDir });
+
+      const checklistRole = resolveReviewerRole(result.config, "pr-checklist-matrix");
+      const preApprovalAngles = resolveGateAngles(result.config, "preApproval");
+
+      assert.deepEqual(result.errors, []);
+      assert.equal(result.config.personas["pr-checklist-matrix"].persona, "review");
+      assert.match(result.config.personas["pr-checklist-matrix"].prompt, /checkbox/i);
+      assert.match(result.config.personas["pr-checklist-matrix"].prompt, /AC\/DoD\/non-goals matrix/i);
+      assert.match(result.config.personas["pr-checklist-matrix"].prompt, /markdown table/i);
+      assert.match(result.config.personas["pr-checklist-matrix"].prompt, /unchecked/i);
+      assert.ok(preApprovalAngles.includes("pr-checklist-matrix"), "pr-checklist-matrix must be in pre-approval gate angles after settings opt-in");
+      assert.equal(checklistRole.persona, "review");
+      assert.equal(checklistRole.fallback, false);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

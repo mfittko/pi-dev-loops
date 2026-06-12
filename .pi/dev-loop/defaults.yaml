@@ -45,10 +45,13 @@ gates:
       - renderer-security
       - determinism
       - pr-comments
+      - pr-description
     excludeAngles: []
     required: true
     # When true, draft gate waits for green CI before the gate may run.
     requireCi: true
+    mandatoryAngles:
+      - pr-description
   preApproval:
     # Pre-approval gate: runs before declaring merge-ready.
     # All angle families enabled by default.
@@ -65,8 +68,11 @@ gates:
       - isp
       - dip
       - docs
+      - pr-checklist-matrix
     excludeAngles: []
     required: true
+    mandatoryAngles:
+      - pr-checklist-matrix
 
 # Autonomy: which gates require operator confirmation (stop points)
 autonomy:
@@ -357,17 +363,31 @@ personas:
   pr-description:
     persona: review
     prompt: >-
-      Review the PR description for completeness, contract fitness, and checkbox formatting.
+      Review the PR description for completeness, contract fitness, and checkbox formatting before this PR is marked ready for review.
       The PR body is the implementation contract — it must have:
       - A Summary section explaining what changed and why
-      - A Changes section listing files touched and modifications
-      - A Validation section describing how to verify
-      - Reference to the linked issue acceptance criteria
+      - A Scope and context section defining the boundary of the change
+      - A File-by-file changes section listing every touched file and what changed in it
+      - An Acceptance criteria section with the linked issue acceptance criteria
+      - A Definition of done section
+      - A Non-goals section
+      - A Validation command section describing exactly how to verify the change
       - The "Closes #N" line must match the linked issue; flag changes that alter or remove the operator-intended close target
       Checkboxes (`- [ ]` / `- [x]`, or `* [ ]` / `* [x]`) must appear inside genuine Markdown list items. Flag any checkbox marker used outside a list item (including table cells) as a worth-fixing-now finding.
       Flag any checkbox marker wrapped in backticks (e.g. `` `[x]` ``) as a worth-fixing-now finding.
-      Flag PRs where the body is a single sentence or lacks these sections.
+      Flag PRs where the body is a single sentence or lacks any of these sections.
       Do not block on formatting preferences other than checkbox correctness.
+    defaultModel: null
+
+  pr-checklist-matrix:
+    persona: review
+    prompt: >-
+      Verify before approval that the PR checklist and AC/DoD/non-goals matrix are complete.
+      - Every PR checkbox (`- [ ]`) must be checked. If any box is unchecked, flag it as a blocking finding.
+      - The PR body must contain an AC/DoD/non-goals matrix that maps each acceptance criterion
+        to its definition-of-done item(s) and lists explicit non-goals.
+      - The matrix must have a markdown table with at least a header row and one content row.
+      - Flag the matrix as incomplete if any acceptance criterion, definition-of-done item, or non-goal is missing.
     defaultModel: null
 
   pr-comments:
