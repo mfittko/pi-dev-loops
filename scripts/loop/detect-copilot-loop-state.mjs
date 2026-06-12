@@ -172,7 +172,14 @@ async function fetchLatestCopilotReviewRequestAt({ repo, pr }, { env, ghCommand 
   }
   return latestAt;
 }
-async function fetchCurrentHeadCiEvidence({ repo, headSha }, { env, ghCommand }) {
+function extractPrVisibleCheckNames(statusCheckRollup) {
+  if (!Array.isArray(statusCheckRollup)) return [];
+  return statusCheckRollup
+    .map((entry) => entry?.name || entry?.context)
+    .filter((name) => typeof name === "string" && name.length > 0);
+}
+
+async function fetchCurrentHeadCiEvidence({ repo, headSha, prVisibleCheckNames }, { env, ghCommand }) {
   const [checkRunsResult, statusesResult] = await Promise.all([
     runChild(
       ghCommand,
@@ -191,7 +198,20 @@ async function fetchCurrentHeadCiEvidence({ repo, headSha }, { env, ghCommand })
     try {
       const payload = JSON.parse(checkRunsResult.stdout);
       if (Array.isArray(payload?.check_runs)) {
-        checkRunsSignal = summarizeHeadScopedCheckRunsSignal(payload);
+        const visibleSet = prVisibleCheckNames?.length > 0 ? new Set(prVisibleCheckNames) : null;
+        const visibleRuns = visibleSet
+          ? payload.check_runs.filter((run) => !run.name || visibleSet.has(run.name))
+          : payload.check_runs;
+        // Use visible runs for the status signal, but preserve the full-set
+        // unsupportedCompleted flag so hidden check-runs still contribute to
+        // the cautious none override (#740).
+        const visibleSignal = summarizeHeadScopedCheckRunsSignal({ check_runs: visibleRuns });
+        const fullSignal = summarizeHeadScopedCheckRunsSignal(payload);
+        const excludedRuns = visibleSet
+          ? payload.check_runs.filter((run) => run.name && !visibleSet.has(run.name))
+          : [];
+        const excludedSignal = summarizeHeadScopedCheckRunsSignal({ check_runs: excludedRuns });
+        checkRunsSignal = { ...visibleSignal, unsupportedCompleted: fullSignal.unsupportedCompleted, excludedFailureDetails: excludedSignal.failureDetails ?? [] };
         checkRunsCount = payload.check_runs.length;
       }
     } catch {
@@ -223,6 +243,8 @@ async function fetchCurrentHeadCiEvidence({ repo, headSha }, { env, ghCommand })
       checkRunsUnsupportedCompleted: checkRunsSignal?.unsupportedCompleted ?? false,
     }).overallStatus,
     observedZeroSuitesAndStatuses: checkRunsCount === 0 && statusesCount === 0,
+    failureDetails: checkRunsSignal?.failureDetails ?? [],
+    excludedFailureDetails: checkRunsSignal?.excludedFailureDetails ?? [],
   };
 }
 function hasLocalValidationForCurrentHead(localValidationHeadSha, currentHeadSha) {
@@ -340,10 +362,15 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
         && hasLocalValidationForCurrentHead(localValidationHeadSha, prHeadSha)
       )
     );
+  const prVisibleCheckNames = extractPrVisibleCheckNames(prData.statusCheckRollup);
   let currentHeadCiStatus = fallbackCiStatus;
+  let failureDetails = [];
+  let excludedFailureDetails = [];
   if (shouldRefreshCurrentHeadCi) {
-    const refreshed = await fetchCurrentHeadCiEvidence({ repo, headSha: prHeadSha }, { env, ghCommand });
+    const refreshed = await fetchCurrentHeadCiEvidence({ repo, headSha: prHeadSha, prVisibleCheckNames }, { env, ghCommand });
     currentHeadCiStatus = refreshed?.status ?? "none";
+    failureDetails = refreshed?.failureDetails ?? [];
+    excludedFailureDetails = refreshed?.excludedFailureDetails ?? [];
     if (shouldPromoteCrediblyGreen({
       refreshedCurrentHeadCi: refreshed,
       fallbackCiStatus,
@@ -367,6 +394,8 @@ export async function autoDetectSnapshot({ repo, pr, reviewRequestStatusOverride
     copilotReviewRoundCount: reviewSummary.completedCopilotReviewRounds,
     lastCopilotRoundMaxSignal,
     ciStatus: currentHeadCiStatus,
+    failureDetails,
+    excludedFailureDetails,
   });
 }
 export async function runCli(

@@ -163,6 +163,8 @@ export function buildSnapshotFromPrFacts({
   copilotReviewRoundCount = 0,
   ciStatus,
   lastCopilotRoundMaxSignal = null,
+  failureDetails = [],
+  excludedFailureDetails = [],
 }) {
   const prState = typeof prData?.state === "string" ? prData.state.toUpperCase() : "OPEN";
   const prMerged = prState === "MERGED";
@@ -182,6 +184,8 @@ export function buildSnapshotFromPrFacts({
     copilotReviewRoundCount,
     lastCopilotRoundMaxSignal,
     ciStatus: ciStatus ?? normalizeCiStatus(prData?.statusCheckRollup),
+    failureDetails,
+    excludedFailureDetails,
   });
 }
 
@@ -217,6 +221,8 @@ function isAutoRerequestEligible(snapshot, state) {
  * - ciStatus {"success"|"failure"|"pending"|"none"|"crediblyGreen"} — current CI check rollup status
  * - lastCopilotRoundMaxSignal {"high"|"mid"|"low"|null} — highest signal level across Copilot-authored threads
  * - agentFixStatus {"applied"|null} — agent-provided input: "applied" when code has been fixed
+ * - failureDetails {Array<string>} — names of failing visible check-runs from refreshed head-scoped CI evidence
+ * - excludedFailureDetails {Array<string>} — names of failing check-runs filtered out by PR-visibility intersection
  *
  * @param {object} raw - raw snapshot input
  * @returns {object} normalized snapshot
@@ -257,6 +263,8 @@ export function normalizeSnapshot(raw) {
     ciStatus: VALID_CI_STATUSES.has(raw.ciStatus) ? raw.ciStatus : "none",
     lastCopilotRoundMaxSignal: VALID_SIGNAL_LEVELS.has(raw.lastCopilotRoundMaxSignal) ? raw.lastCopilotRoundMaxSignal : null,
     agentFixStatus: raw.agentFixStatus === "applied" ? "applied" : null,
+    failureDetails: Array.isArray(raw.failureDetails) ? raw.failureDetails : [],
+    excludedFailureDetails: Array.isArray(raw.excludedFailureDetails) ? raw.excludedFailureDetails : [],
   };
 }
 

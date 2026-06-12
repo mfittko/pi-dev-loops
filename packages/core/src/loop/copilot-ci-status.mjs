@@ -93,7 +93,7 @@ export function normalizeStatusCheckRollupStatus(rollup) {
  * Summarize the GitHub check-runs API payload for one head SHA.
  *
  * @param {object} payload
- * @returns {{ status: "success"|"failure"|"pending"|"none", unsupportedCompleted: boolean }}
+ * @returns {{ status: "success"|"failure"|"pending"|"none", unsupportedCompleted: boolean, failureDetails?: Array<string> }}
  */
 export function summarizeHeadScopedCheckRunsSignal(payload) {
   const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
@@ -105,6 +105,7 @@ export function summarizeHeadScopedCheckRunsSignal(payload) {
   let hasFailure = false;
   let hasSuccess = false;
   let hasUnsupportedCompleted = false;
+  const failureDetails = [];
 
   for (const run of runs) {
     const status = typeof run?.status === "string" ? run.status.toUpperCase() : "";
@@ -117,6 +118,8 @@ export function summarizeHeadScopedCheckRunsSignal(payload) {
 
     if (FAILURE_CONCLUSIONS.has(conclusion)) {
       hasFailure = true;
+      const name = typeof run?.name === "string" ? run.name : "";
+      if (name) failureDetails.push(name);
       continue;
     }
 
@@ -128,11 +131,11 @@ export function summarizeHeadScopedCheckRunsSignal(payload) {
     hasUnsupportedCompleted = true;
   }
 
-  if (hasFailure) return { status: "failure", unsupportedCompleted: hasUnsupportedCompleted };
-  if (hasPending) return { status: "pending", unsupportedCompleted: hasUnsupportedCompleted };
-  if (hasUnsupportedCompleted) return { status: "none", unsupportedCompleted: true };
-  if (hasSuccess) return { status: "success", unsupportedCompleted: false };
-  return { status: "none", unsupportedCompleted: false };
+  if (hasFailure) return { status: "failure", unsupportedCompleted: hasUnsupportedCompleted, failureDetails };
+  if (hasPending) return { status: "pending", unsupportedCompleted: hasUnsupportedCompleted, failureDetails: failureDetails.length > 0 ? failureDetails : undefined };
+  if (hasUnsupportedCompleted) return { status: "none", unsupportedCompleted: true, failureDetails: failureDetails.length > 0 ? failureDetails : undefined };
+  if (hasSuccess) return { status: "success", unsupportedCompleted: false, failureDetails: failureDetails.length > 0 ? failureDetails : undefined };
+  return { status: "none", unsupportedCompleted: false, failureDetails: failureDetails.length > 0 ? failureDetails : undefined };
 }
 
 /**
