@@ -922,6 +922,7 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head fai
     assert.equal(output.state, "blocked_needs_user_decision");
     assert.equal(output.snapshot.ciStatus, "failure");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.deepEqual(output.snapshot.failureDetails, ["ci-old-head"]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1510,6 +1511,141 @@ test("detect-copilot-loop-state does not false-block on hidden failed head check
     assert.equal(output.snapshot.ciStatus, "success");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
     assert.deepEqual(output.snapshot.excludedFailureDetails, ["copilot"]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state downgrades visible success to none when hidden check-run is unsupported completed (#740)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-740-unsupported-completed-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-old-submitted",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: JSON.stringify({
+          check_runs: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+            { status: "COMPLETED", conclusion: "CANCELLED", name: "ops" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    // Hidden unsupported-completed check forces downgrade from success to none.
+    assert.equal(output.snapshot.ciStatus, "none");
+    assert.equal(output.state, "waiting_for_ci");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.deepEqual(output.snapshot.excludedFailureDetails, []);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state preserves success when multiple hidden checks fail (#740)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-740-multi-hidden-failures-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-old-submitted",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: JSON.stringify({
+          check_runs: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+            { status: "COMPLETED", conclusion: "FAILURE", name: "copilot" },
+            { status: "COMPLETED", conclusion: "FAILURE", name: "lint" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    // PR-visible rollup is success, so multiple hidden head-scoped failures must not downgrade.
+    assert.equal(output.snapshot.ciStatus, "success");
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.deepEqual(output.snapshot.excludedFailureDetails, ["copilot", "lint"]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
