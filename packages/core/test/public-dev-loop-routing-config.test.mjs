@@ -80,19 +80,15 @@ test("explicit prefer_local targetPreference routes locally", async () => {
   assert.equal(result.selectedStrategy, "local_implementation");
 });
 
-test("explicit prefer_local still fails closed when authoritative linked PR state is active", async () => {
+test("explicit prefer_local routes start_on_issue with linked PR through github-first path", async () => {
   const { routing } = await loadRoutingModuleForRepo(process.cwd());
   const result = routing.evaluatePublicDevLoopRouting({
-    intent: DEV_LOOP_PUBLIC_INTENT.CONTINUE_ON_PR,
-    target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 42, issue: 86 },
+    intent: DEV_LOOP_PUBLIC_INTENT.START_ON_ISSUE,
+    target: { kind: DEV_LOOP_TARGET_KIND.ISSUE, issue: 86 },
     targetPreference: DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL,
-    currentState: {
-      target: { kind: DEV_LOOP_TARGET_KIND.PR, pr: 42, issue: 86, linkedPr: null, branch: null, phase: null },
-      ownership: "user",
-      nextActor: "user",
-      status: "open",
-    },
+    issueLinkageResolution: "resolved_linked_pr",
   });
   assert.equal(result.routeKind, DEV_LOOP_ROUTE_KIND.ROUTE);
-  assert.equal(result.selectedGate, DEV_LOOP_GATE.COPILOT_PR_FOLLOWUP);
+  assert.equal(result.selectedGate, DEV_LOOP_GATE.LOCAL_IMPLEMENTATION);
+  assert.equal(result.selectedStrategy, "local_implementation");
 });
