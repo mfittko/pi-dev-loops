@@ -595,6 +595,21 @@ describe("ensure-queue-board", () => {
       }
     });
 
+    it("reads .devloops.yaml extension variant", () => {
+      const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
+      try {
+        writeFileSync(path.join(tmp, ".devloops.yaml"), [
+          "version: 1",
+          "queue:",
+          "  boardTitle: From Yaml",
+        ].join("\n"));
+        const result = resolveSettings(tmp);
+        assert.deepEqual(result, { title: "From Yaml" });
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it("returns title from settings when projectNumber is absent", () => {
       const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
       try {
