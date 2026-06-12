@@ -493,7 +493,7 @@ test("detect-copilot-loop-state keeps zero-suite current-head CI at none under r
               author: { login: "copilot-pull-request-reviewer[bot]" },
               state: "COMMENTED",
               submittedAt: "2026-06-02T10:00:00Z",
-              commit: { oid: "newsha" },
+              commit: { oid: "oldsha" },
             },
           ],
           statusCheckRollup: [
