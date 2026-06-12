@@ -93,13 +93,13 @@ Required:
 - `--pr <number>`
 
 Optional:
-- `--force-rerequest-review` — bypass the round cap when new commits exist since the last Copilot review. Refused with `no_changes_since_last_review` when the PR head has not changed since the last review. No-op when the round cap has not been reached.
+- `--force-rerequest-review` — bypass the round cap when new commits exist since the last Copilot review. Refused with `no_changes_since_last_review` when the PR head has not changed since the last review. No-op when the round cap has not been reached. Normal requests now automatically re-open at round cap when the head changed, all prior feedback is resolved, and CI is green or credibly green.
 
 Contract:
 - checks `requested_reviewers` first so an existing Copilot request is detected without mutating PR state again
 - requests Copilot via `gh pr edit <pr> --repo <owner/name> --add-reviewer @copilot`
 - is suitable both for the first request after ready-for-review and for later explicit re-requests after follow-up fix commits land on the PR head
-- enforces a round cap (default: 5, configurable via `maxCopilotRounds` in settings); use `--force-rerequest-review` to bypass the cap only when there are new commits since the last review
+- enforces a round cap (default: 5, configurable via `maxCopilotRounds` in settings); clean round-cap PRs with new commits, resolved threads, and green/credibly green CI automatically re-open for a normal re-request, while `--force-rerequest-review` remains the operator override for other new-commit cases
 - should be paired with a fresh unresolved-thread check after Copilot posts again; requesting review alone does not complete the loop
 - verifies the result through `gh api repos/<owner>/<name>/pulls/<pr>/requested_reviewers`
 - does **not** rely on `gh pr view --json reviewRequests`, which can be incomplete for Copilot reviewer state

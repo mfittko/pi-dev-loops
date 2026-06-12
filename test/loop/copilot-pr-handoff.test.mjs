@@ -152,7 +152,7 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-watch-"));
 
   try {
-    const env = await writeGhStub(tempDir, [
+    const { env } = await writeGhStubHelper(tempDir, [
       // detect: pr view
       {
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
@@ -193,7 +193,7 @@ test("copilot-pr-handoff requests review and emits watch action for pr_ready_no_
         assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
         stdout: '{"reviews":[]}\n',
       },
-    ]);
+    ], { matchMode: "claims" });
     env.PI_SUBAGENT_RUN_ID = "";
 
     const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
@@ -1247,6 +1247,121 @@ test("copilot-pr-handoff keeps same-head suppression (no force flag)", async () 
     assert.equal(output.requestWatchContract.requestStatus, "none");
     assert.equal(output.requestWatchContract.routingState, "non_ready_state");
     assert.equal(output.requestWatchContract.stopState, "no_automatic_next_step");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("copilot-pr-handoff re-requests at round cap when new commits land after resolved comments", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-handoff-round-cap-rerequest-"));
+
+  try {
+    const { env } = await writeGhStubHelper(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-1",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T10:00:00Z",
+              commit: { oid: "oldsha-1" },
+            },
+            {
+              id: "r-2",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T11:00:00Z",
+              commit: { oid: "oldsha-2" },
+            },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "files", "--jq", ".files[].path"],
+        stdout: 'packages/core/src/loop/copilot-loop-state.mjs\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: JSON.stringify({
+          headRefOid: "newsha",
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          reviews: [
+            { id: "r-1", state: "COMMENTED", author: { login: "copilot-pull-request-reviewer[bot]" }, commit: { oid: "oldsha-1" } },
+            { id: "r-2", state: "COMMENTED", author: { login: "copilot-pull-request-reviewer[bot]" }, commit: { oid: "oldsha-2" } },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: EMPTY_THREADS + "\n",
+      },
+      {
+        assertArgs: ["pr", "edit", "17", "--repo", "owner/repo", "--add-reviewer", "@copilot"],
+        stdout: "https://github.com/owner/repo/pull/17\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[{"login":"Copilot"}],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo", "--json", "headRefOid,isDraft,state,number,reviews,statusCheckRollup"],
+        stdout: JSON.stringify({
+          headRefOid: "newsha",
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          reviews: [
+            { id: "r-1", state: "COMMENTED", author: { login: "copilot-pull-request-reviewer[bot]" }, commit: { oid: "oldsha-1" } },
+            { id: "r-2", state: "COMMENTED", author: { login: "copilot-pull-request-reviewer[bot]" }, commit: { oid: "oldsha-2" } },
+          ],
+          statusCheckRollup: [{ status: "COMPLETED", conclusion: "SUCCESS", name: "ci" }],
+        }) + "\n",
+      },
+    ], { matchMode: "claims" });
+    env.PI_SUBAGENT_RUN_ID = "";
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.equal(output.action, "watch");
+    assert.equal(output.state, "waiting_for_copilot_review");
+    assert.equal(output.reviewRequestStatus, "requested");
+    assert.equal(output.loopDisposition, "pending");
+    assert.equal(output.terminal, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

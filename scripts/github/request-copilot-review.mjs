@@ -202,6 +202,46 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     return false;
   }
 }
+async function detectRoundCapAutoRerequestEligibility(options, runtime, priorReviewState = {}, refinementConfig = {}) {
+  const {
+    requested = false,
+    prData = null,
+    copilotReviewPresent = false,
+    hasPendingReviewOnCurrentHead = false,
+    hasSubmittedReviewOnCurrentHead = false,
+  } = priorReviewState;
+  if (prData === null) {
+    return { eligible: false, interpretation: null };
+  }
+  try {
+    const threadsPayload = await fetchGithubReviewThreadsPayload(
+      { repo: options.repo, pr: options.pr },
+      runtime,
+    );
+    const parsedThreads = parseReviewThreads(threadsPayload);
+    const snapshot = buildSnapshotFromPrFacts({
+      prData,
+      prNumber: options.pr,
+      copilotReviewRequestStatus: hasPendingReviewOnCurrentHead || requested ? "requested" : "none",
+      copilotReviewPresent,
+      copilotReviewOnCurrentHead: hasSubmittedReviewOnCurrentHead,
+      unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
+      actionableThreadCount: parsedThreads.summary.actionableThreads,
+      copilotReviewRoundCount: priorReviewState.completedCopilotReviewRounds ?? 0,
+    });
+    const interpretation = interpretLoopState(snapshot, refinementConfig);
+    return {
+      eligible: interpretation.state === "ready_to_rerequest_review" && interpretation.autoRerequestEligible === true,
+      interpretation,
+    };
+  } catch (error) {
+    if (runtime?.env?.PI_DEV_LOOPS_DEBUG === "1") {
+      const detail = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[request-copilot-review] round-cap auto-rerequest detection unavailable: ${detail}\n`);
+    }
+    return { eligible: false, interpretation: null };
+  }
+}
 function getLastCopilotReviewHeadSha(prData) {
   const reviews = Array.isArray(prData?.reviews) ? prData.reviews : [];
   // Only consider submitted (non-PENDING) Copilot reviews.
@@ -380,16 +420,24 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       && !before.requested
       && !before.hasPendingReviewOnCurrentHead) {
     if (!options.forceRerequestReview) {
-      return {
-        ok: true,
-        status: ROUND_CAP_REACHED_STATUS,
-        repo: options.repo,
-        pr: options.pr,
-        reviewer: "Copilot",
-        completedRounds: before.completedCopilotReviewRounds,
-        maxRounds,
-        detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
-      };
+      const roundCapAutoRerequest = await detectRoundCapAutoRerequestEligibility(
+        options,
+        { env, ghCommand },
+        before,
+        { maxCopilotRounds: maxRounds },
+      );
+      if (!roundCapAutoRerequest.eligible) {
+        return {
+          ok: true,
+          status: ROUND_CAP_REACHED_STATUS,
+          repo: options.repo,
+          pr: options.pr,
+          reviewer: "Copilot",
+          completedRounds: before.completedCopilotReviewRounds,
+          maxRounds,
+          detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
+        };
+      }
     }
     // --force-rerequest-review: only bypass when there are new commits since the last review
     const currentHeadSha = typeof before.prData?.headRefOid === "string" && before.prData.headRefOid.trim().length > 0

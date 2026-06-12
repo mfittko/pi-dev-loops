@@ -904,7 +904,7 @@ test("interpretLoopState routes to ROUND_CAP_REACHED when round cap reached with
   assert.equal(result.roundCapCleanEligible, false);
 });
 
-test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK when round cap reached with clean PR and green CI", () => {
+test("interpretLoopState re-opens to READY_TO_REREQUEST_REVIEW when round cap reached after new commits with clean PR and green CI", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
@@ -920,15 +920,15 @@ test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK when round cap reach
   const refinementConfig = { maxCopilotRounds: 5 };
 
   const result = interpretLoopState(snapshot, refinementConfig);
-  assert.equal(result.state, STATE.ROUND_CAP_CLEAN_FALLBACK);
-  assert.deepEqual(result.allowedTransitions, []);
-  assert.equal(result.autoRerequestEligible, false);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.deepEqual(result.allowedTransitions, [STATE.WAITING_FOR_COPILOT_REVIEW, STATE.REVIEW_REQUEST_UNAVAILABLE, STATE.DONE]);
+  assert.equal(result.autoRerequestEligible, true);
   assert.equal(result.sameHeadCleanConverged, false);
-  assert.equal(result.roundCapCleanEligible, true);
-  assert.match(result.nextAction, /pre_approval_gate/i);
+  assert.equal(result.roundCapCleanEligible, false);
+  assert.match(result.nextAction, /Re-request Copilot review/i);
 });
 
-test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK with crediblyGreen CI", () => {
+test("interpretLoopState re-opens to READY_TO_REREQUEST_REVIEW when round cap reached after new commits with crediblyGreen CI", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
@@ -944,8 +944,33 @@ test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK with crediblyGreen C
   const refinementConfig = { maxCopilotRounds: 5 };
 
   const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.READY_TO_REREQUEST_REVIEW);
+  assert.equal(result.autoRerequestEligible, true);
+  assert.equal(result.roundCapCleanEligible, false);
+});
+
+test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK at round cap when current head already has submitted Copilot review", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    copilotReviewOnCurrentHead: true,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
   assert.equal(result.state, STATE.ROUND_CAP_CLEAN_FALLBACK);
+  assert.deepEqual(result.allowedTransitions, []);
+  assert.equal(result.autoRerequestEligible, false);
+  assert.equal(result.sameHeadCleanConverged, false);
   assert.equal(result.roundCapCleanEligible, true);
+  assert.match(result.nextAction, /pre_approval_gate/i);
 });
 
 test("interpretLoopState routes to ROUND_CAP_REACHED when round cap reached with clean threads but failing CI", () => {
@@ -1162,7 +1187,7 @@ test("round cap does not override BLOCKED_NEEDS_USER_DECISION from failed review
   assert.equal(result.roundCapCleanEligible, false);
 });
 
-test("round cap takes priority over low-signal heuristic when both apply", () => {
+test("low-signal heuristic can still suppress a round-cap re-opened re-request when both apply", () => {
   const snapshot = {
     prExists: true,
     prNumber: 17,
@@ -1183,8 +1208,7 @@ test("round cap takes priority over low-signal heuristic when both apply", () =>
     lowSignalMaxComments: 2,
   };
 
-  // Round cap is checked first, clean fallback wins over low-signal
   const result = interpretLoopState(snapshot, refinementConfig);
-  assert.equal(result.state, STATE.ROUND_CAP_CLEAN_FALLBACK);
-  assert.equal(result.roundCapCleanEligible, true);
+  assert.equal(result.state, STATE.LOW_SIGNAL_CONVERGED);
+  assert.equal(result.roundCapCleanEligible, false);
 });
