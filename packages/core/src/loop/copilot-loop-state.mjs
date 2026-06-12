@@ -221,6 +221,8 @@ function isAutoRerequestEligible(snapshot, state) {
  * - ciStatus {"success"|"failure"|"pending"|"none"|"crediblyGreen"} — current CI check rollup status
  * - lastCopilotRoundMaxSignal {"high"|"mid"|"low"|null} — highest signal level across Copilot-authored threads
  * - agentFixStatus {"applied"|null} — agent-provided input: "applied" when code has been fixed
+ * - failureDetails {Array<string>} — names of failing visible check-runs from refreshed head-scoped CI evidence
+ * - excludedFailureDetails {Array<string>} — names of failing check-runs filtered out by PR-visibility intersection
  *
  * @param {object} raw - raw snapshot input
  * @returns {object} normalized snapshot
