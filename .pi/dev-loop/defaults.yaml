@@ -364,8 +364,8 @@ personas:
       - A Validation section describing how to verify
       - Reference to the linked issue acceptance criteria
       - The "Closes #N" line must match the linked issue; flag changes that alter or remove the operator-intended close target
-      Acceptance criteria, definition-of-done items, and task lists must use real GitHub markdown checkboxes (`- [ ]` / `- [x]`).
-      Flag any checkbox marker wrapped in backticks (e.g. `` `[x]` ``) or any table cell that contains `[x]` without the leading `- ` as a worth-fixing-now finding.
+      Checkboxes (`- [ ]` / `- [x]`, or `* [ ]` / `* [x]`) must appear inside genuine Markdown list items. Flag any checkbox marker used outside a list item (including table cells) as a worth-fixing-now finding.
+      Flag any checkbox marker wrapped in backticks (e.g. `` `[x]` ``) as a worth-fixing-now finding.
       Flag PRs where the body is a single sentence or lacks these sections.
       Do not block on formatting preferences other than checkbox correctness.
     defaultModel: null

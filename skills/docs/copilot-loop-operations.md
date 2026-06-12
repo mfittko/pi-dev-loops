@@ -168,7 +168,7 @@ When you do hand work to Copilot:
 
 Follow the PR description contract (see [Agent Instructions](../../AGENTS.md) if present; otherwise use the structure below): detailed structured descriptions, not thin placeholders. At minimum include change summary, scope/context, explicit acceptance criteria, explicit definition of done, and explicit non-goals, and `Closes #N` (or `Fixes #N`) for the linked issue so GitHub auto-closes it on merge.
 
-Checkbox rule: render acceptance criteria, definition-of-done items, and any task list as real GitHub markdown checkboxes using `- [ ]` and `- [x]`. Do not wrap checkbox markers (e.g. `[x]`) in backticks or place them inside table cells without the leading `- `; GitHub only renders interactive task lists when each line starts with `- [ ]` or `- [x]`.
+Checkbox rule: acceptance criteria, definition-of-done items, and any task list must be rendered as real GitHub markdown checkboxes inside list items (`- [ ]` / `- [x]`, also `* [ ]` / `* [x]`). Do not wrap checkbox markers (e.g. `[x]`) in backticks. Do not place checkbox markers inside table cells — task lists are not interactive there even with a leading `- `.
 
 New PRs in this workflow must be opened as **draft** PRs first when the repository enables `.devloops` at repo root `workflow.requireDraftFirst`. The built-in shipped default remains permissive; this repo opts in. Do not create a fresh PR directly in ready-for-review state unless the user explicitly overrides that policy for the current PR scope. The draft gate inspection is a real workflow boundary, so a new PR must exist in draft before `gh pr ready` is even eligible.
 
