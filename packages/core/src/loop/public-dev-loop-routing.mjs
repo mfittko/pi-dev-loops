@@ -1,4 +1,3 @@
-import { loadDevLoopConfig } from "../config/config.mjs";
 import {
   evaluateRetrospectiveGate,
   normalizeRetrospectiveCheckpointState,
@@ -1307,48 +1306,14 @@ export function resolveAuthoritativeStartupResumeBundle(input = {}) {
 
 const BUILT_IN_DEFAULT_TARGET_PREFERENCE = DEV_LOOP_TARGET_PREFERENCE.PREFER_GITHUB_FIRST;
 
-function resolveConfiguredTargetPreference(strategyDefault) {
-  if (strategyDefault === "local-first") {
-    return DEV_LOOP_TARGET_PREFERENCE.PREFER_LOCAL;
-  }
-  if (strategyDefault === "github-first") {
-    return DEV_LOOP_TARGET_PREFERENCE.PREFER_GITHUB_FIRST;
-  }
-  return BUILT_IN_DEFAULT_TARGET_PREFERENCE;
-}
-
-function emitConfigWarning(note) {
-  process.emitWarning(note, {
-    code: "DEV_LOOP_ROUTING_CONFIG_FALLBACK",
-    type: "DevLoopRoutingConfigWarning",
-  });
-}
-
-async function loadDefaultTargetPreference() {
-  try {
-    const { config, warnings, errors } = await loadDevLoopConfig({ repoRoot: process.cwd() });
-
-    if (warnings.length > 0) {
-      emitConfigWarning(`public-dev-loop-routing: ${warnings.join("; ")}. Falling back to built-in target preference when needed.`);
-    }
-
-    if (errors.length > 0) {
-      emitConfigWarning(
-        `public-dev-loop-routing: ${errors.map(({ layer, message }) => `${layer}: ${message}`).join("; ")}. Falling back to built-in target preference when needed.`,
-      );
-      return BUILT_IN_DEFAULT_TARGET_PREFERENCE;
-    }
-
-    return resolveConfiguredTargetPreference(config?.strategy?.default);
-  } catch (error) {
-    emitConfigWarning(
-      `public-dev-loop-routing: unable to load dev-loop config (${error?.message ?? String(error)}). Falling back to built-in target preference when needed.`,
-    );
-    return BUILT_IN_DEFAULT_TARGET_PREFERENCE;
-  }
-}
-
-const DEFAULT_TARGET_PREFERENCE = await loadDefaultTargetPreference();
+// DEFAULT_TARGET_PREFERENCE uses the built-in default (github-first).
+// Config-based target preference is resolved by the startup resolver
+// (resolveTargetPreference in scripts/loop/resolve-dev-loop-startup.mjs)
+// and passed explicitly via input.targetPreference.
+// This module must not read the live config file at import time
+// because test suites run from the repo root and would pick up the
+// repo's own .devloops, making tests depend on live config.
+const DEFAULT_TARGET_PREFERENCE = BUILT_IN_DEFAULT_TARGET_PREFERENCE;
 
 function buildStatusReconcile(
   reason,

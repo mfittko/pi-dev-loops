@@ -1,13 +1,13 @@
 version: 1
 
 strategy:
-  default: local-first
+  default: github-first
 
 inputSource:
   default: tracker
 
 refinement:
-  maxCopilotRounds: 2
+  maxCopilotRounds: 5
 
 gates:
   draft:
@@ -54,12 +54,6 @@ workflow:
   requireRetrospectiveGate: true
   requireDraftFirst: true
   devModeDefault: true
-
-localImplementation:
-  lightMode:
-    enabled: true
-    maxFiles: 2
-    maxLines: 100
 
 queue:
   maxParallel: 3

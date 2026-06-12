@@ -834,8 +834,8 @@ test("request-copilot-review returns round_cap_reached when cap is exhausted wit
       pr: 17,
       reviewer: "Copilot",
       completedRounds: 5,
-      maxRounds: 5,
-      detail: "Round cap of 5 reached with 5 completed rounds. No further re-requests will be made.",
+      maxRounds: 2,
+      detail: "Round cap of 2 reached with 5 completed rounds. No further re-requests will be made.",
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -914,7 +914,7 @@ test("request-copilot-review --force-rerequest-review refuses when cap reached a
       reviewer: "Copilot",
       detail: "No changes since last Copilot review. --force-rerequest-review requires new commits on the PR head.",
       completedRounds: 5,
-      maxRounds: 5,
+      maxRounds: 2,
     });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
