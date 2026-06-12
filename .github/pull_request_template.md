@@ -6,7 +6,11 @@
 
 <!-- What is in scope and what is intentionally out of scope. -->
 
-## File-by-file changes
+## Linked issue
+
+Closes #N
+
+## Changes
 
 | File | Change |
 |------|--------|
