@@ -11,7 +11,7 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
-import { loadDevLoopConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
+import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
@@ -405,13 +405,14 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       };
     }
   }
+  let refinementConfig = { maxCopilotRounds: 5 };
   let maxRounds = 5; // Built-in default; overridden by config when loadable
   try {
     const { config, errors } = await loadDevLoopConfig();
     if (!errors || errors.length === 0) {
-      const resolved = resolveRefinementConfig(config, "maxCopilotRounds");
-      if (Number.isFinite(resolved) && resolved > 0) {
-        maxRounds = resolved;
+      refinementConfig = resolveRefinement(config);
+      if (Number.isFinite(refinementConfig.maxCopilotRounds) && refinementConfig.maxCopilotRounds > 0) {
+        maxRounds = refinementConfig.maxCopilotRounds;
       }
     }
   } catch {
@@ -424,7 +425,7 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
         options,
         { env, ghCommand },
         before,
-        { maxCopilotRounds: maxRounds },
+        refinementConfig,
       );
       if (!roundCapAutoRerequest.eligible) {
         return {
