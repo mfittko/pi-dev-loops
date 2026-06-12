@@ -2,7 +2,7 @@
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { runChild as _runChild } from "../_cli-primitives.mjs";
 
-const USAGE = `Usage: node scripts/projects/move-queue-item.mjs --repo <owner/name> --project <number|id> --item <number|node-id> --to-column <name>
+const USAGE = `Usage: dev-loops project move --repo <owner/name> --project <number|id> --item <number|node-id> --to-column <name>
 
 Move a GitHub Projects V2 item between Status columns.
 
