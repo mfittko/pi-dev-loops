@@ -67,6 +67,17 @@ const SUBCOMMAND_ROUTES = {
 
 const TOP_LEVEL_COMMANDS = new Set(["help", "status", "doctor", "gates", "hide"]);
 
+const HELP_CATEGORY_LABELS = {
+  gate: "Gate verdicts, evidence, and review operations",
+  loop: "Loop lifecycle",
+  pr: "PR helpers",
+  project: "GitHub Projects queue helpers",
+  inspect: "Inspection (Pi extension only)",
+  refine: "Epic tree refinement verification",
+};
+
+const TOP_LEVEL_HELP_CATEGORY_ORDER = ["gate", "loop", "pr", "project", "inspect", "refine"];
+
 const SUBCOMMAND_DESCRIPTIONS = {
   gate: {
     "upsert-verdict": "Post/update gate review comment",
@@ -154,18 +165,27 @@ async function commandExists(
   return false;
 }
 
+function buildSubcommandLines(category, { includeHeader = false } = {}) {
+  const routes = SUBCOMMAND_ROUTES[category];
+  if (!routes) return [];
+  const descriptions = SUBCOMMAND_DESCRIPTIONS[category] ?? {};
+  const lines = Object.keys(routes).map((subcommand) => {
+    const description = descriptions[subcommand];
+    return description ? `    ${subcommand.padEnd(16)} ${description}` : `    ${subcommand}`;
+  });
+  if (!includeHeader) return lines;
+  const label = HELP_CATEGORY_LABELS[category] ?? `${category} helpers`;
+  return [`- dev-loops ${category} <sub> [...]    ${label}`, ...lines];
+}
+
 function buildCategoryHelp(category) {
   const routes = SUBCOMMAND_ROUTES[category];
   if (!routes) return [`Unknown category: ${category}`];
-  const descriptions = SUBCOMMAND_DESCRIPTIONS[category] ?? {};
   return [
     `dev-loops ${category} <subcommand> [...]`,
     "",
     "Available subcommands:",
-    ...Object.keys(routes).map((s) => {
-      const description = descriptions[s];
-      return description ? `  ${s.padEnd(16)} ${description}` : `  ${s}`;
-    }),
+    ...buildSubcommandLines(category),
   ];
 }
 
@@ -183,42 +203,7 @@ function buildCliHelpLines() {
     "- dev-loops gates                  Print gate state",
     "",
     "Subcommands:",
-    "- dev-loops gate <sub> [...]       Gate verdicts, evidence, and review operations",
-    "    upsert-verdict    Post/update gate review comment",
-    "    detect-evidence   Check merge preconditions",
-    "    write-findings-log Write disposition ledger",
-    "    request-copilot   Request Copilot review",
-    "    probe-copilot     Poll for Copilot review activity",
-    "    capture-threads   Capture review threads",
-    "    reply-resolve     Reply and resolve review threads",
-    "- dev-loops loop <sub> [...]       Loop lifecycle",
-    "    startup           Resolve dev-loop startup bundle",
-    "    build-envelope    Build handoff envelope from startup output",
-    "    outer             Run outer-loop detection",
-    "    watch-cycle       Run Copilot wait cycle",
-    "    handoff           Copilot PR handoff",
-    "    watch-initial     Watch initial Copilot PR",
-    "    loop-state        Detect Copilot loop state",
-    "    reviewer-state    Detect reviewer loop state",
-    "    gate-coordination Detect PR gate coordination state",
-    "    linked-issue-pr   Detect linked issue ↔ PR",
-    "    issue-refinement  Detect issue refinement artifact",
-    "    info              Show read-only issue/PR state summary",
-    "- dev-loops pr <sub> [...]         PR helpers",
-    "    create-draft      Create draft PR",
-    "    ready-for-review  Mark PR ready for review",
-    "    reconcile-draft   Reconcile non-draft PR",
-    "- dev-loops project <sub> [...]    GitHub Projects queue helpers",
-    "    list              List queue board items",
-    "    add               Add issue/PR to queue board",
-    "    move              Move queue item between Status columns",
-    "    reorder           Reorder queue board items",
-    "    ensure            Create/repair queue board bootstrap surface",
-    "- dev-loops inspect <sub> [...]    Inspection (Pi extension only)",
-    "    run               Inspect run state",
-    "    viewer            Start inspection viewer",
-    "- dev-loops refine <sub> [...]     Epic tree refinement verification",
-    "    verify            Verify tree linkage, scope boundaries, completeness, and integrity",
+    ...TOP_LEVEL_HELP_CATEGORY_ORDER.flatMap((category) => buildSubcommandLines(category, { includeHeader: true })),
     "",
     "Use `dev-loops <category> <subcommand> --help` for per-subcommand usage.",
     "",

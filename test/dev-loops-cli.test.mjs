@@ -297,9 +297,9 @@ test("project wrappers pass through helper stdout and exit codes", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-project-cli-"));
   const binDir = path.join(tempRoot, "bin");
   await mkdir(binDir, { recursive: true });
+  const ghImplPath = path.join(binDir, "gh-impl.mjs");
   const ghPath = path.join(binDir, process.platform === "win32" ? "gh.cmd" : "gh");
-  const ghScript = `#!/usr/bin/env node
-const queryArg = process.argv.find((arg) => arg.startsWith("query=")) ?? "";
+  const ghImpl = `const queryArg = process.argv.find((arg) => arg.startsWith("query=")) ?? "";
 const query = queryArg.slice("query=".length);
 function write(payload) {
   process.stdout.write(JSON.stringify(payload));
@@ -317,7 +317,15 @@ if (query.includes("user(login:$login) { id }")) {
   process.exit(1);
 }
 `;
-  await writeFile(ghPath, ghScript);
+  const ghLauncher = process.platform === "win32"
+    ? `@echo off
+node "%~dp0\gh-impl.mjs" %*
+`
+    : `#!/bin/sh
+node "$(dirname "$0")/gh-impl.mjs" "$@"
+`;
+  await writeFile(ghImplPath, ghImpl);
+  await writeFile(ghPath, ghLauncher);
   await chmod(ghPath, 0o755);
 
   try {
