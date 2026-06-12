@@ -5,7 +5,11 @@ import { parse as parseYaml } from "yaml";
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { runChild as _runChild } from "../_cli-primitives.mjs";
 
-const USAGE = `Usage: dev-loops project ensure --repo <owner/name> [--project <number>] [--title <title>] [--link-repo <owner/name>]
+const USAGE = `Usage: dev-loops project ensure --repo <owner/name> [--project <number>] [--title <title>] [--link-repo <owner/name>] [--repair-rename]
+
+--repair-rename    Rename semantically equivalent Status columns to the standard names
+                   (e.g. "Ready" -> "Next Up"). Without this flag the helper only
+                   reports rename candidates and leaves existing columns untouched.
 
 Idempotent bootstrap for a GitHub Projects V2 board used as the dev-loop queue.
 
@@ -28,7 +32,7 @@ Exit codes:
   3 — board schema/config mismatch (manual reconciliation needed)
 `;
 
-const VALID_ARGS = new Set(["--repo", "--project", "--title", "--link-repo", "--help", "-h"]);
+const VALID_ARGS = new Set(["--repo", "--project", "--title", "--link-repo", "--repair-rename", "--help", "-h"]);
 
 function parseArgs(argv) {
   const args = {}; // title default applied in runCli after settings fallback
@@ -84,6 +88,8 @@ function parseArgs(argv) {
       }
       args.linkRepo = argv[++i];
       consumed.add(i);
+    } else if (arg === "--repair-rename") {
+      args.repairRename = true;
     } else if (arg === "--help" || arg === "-h") {
       args.help = true;
     } else {
@@ -425,6 +431,158 @@ async function listAllFields(projectId, env, runChild) {
   return fields;
 }
 
+
+// ── Column rename/reconcile helpers ──────────────────────────────────────
+
+const RENAME_EQUIVALENTS = {
+  "Backlog": ["Backlog", "Todo", "To do", "Pending"],
+  "Next Up": ["Next Up", "Ready", "Next", "Up next"],
+  "In Progress": ["In Progress", "Doing", "In progress", "InProgress"],
+  "Done": ["Done", "Complete", "Completed"],
+};
+
+function normalizeOptionName(name) {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+const EQUIVALENT_TO_STANDARD = new Map();
+for (const [standard, synonyms] of Object.entries(RENAME_EQUIVALENTS)) {
+  for (const synonym of synonyms) {
+    EQUIVALENT_TO_STANDARD.set(normalizeOptionName(synonym), standard);
+  }
+}
+
+function buildOptionInput(option) {
+  return {
+    name: option.name,
+    color: option.color ?? "GRAY",
+    description: option.description ?? "",
+  };
+}
+
+function classifyOptions(existingOptions, repairRename) {
+  const exactPresent = new Set(existingOptions.map((o) => o.name));
+  const candidates = [];
+  const conflicts = [];
+  const seenCandidateStandard = new Map(); // standard -> option name
+
+  for (const option of existingOptions) {
+    const standard = EQUIVALENT_TO_STANDARD.get(normalizeOptionName(option.name));
+    if (!standard) continue;
+
+    // Exact standard columns are not drift; skip them.
+    if (option.name === standard) continue;
+
+    if (exactPresent.has(standard)) {
+      conflicts.push({
+        option: option.name,
+        reason: `Equivalent "${option.name}" maps to "${standard}", but the exact standard column already exists.`,
+      });
+      continue;
+    }
+
+    if (seenCandidateStandard.has(standard)) {
+      conflicts.push({
+        option: option.name,
+        reason: `Multiple columns map to "${standard}": "${seenCandidateStandard.get(standard)}" and "${option.name}".`,
+      });
+      continue;
+    }
+
+    seenCandidateStandard.set(standard, option.name);
+    candidates.push({
+      optionId: option.id,
+      from: option.name,
+      to: standard,
+    });
+  }
+
+  const candidateTargets = new Set(candidates.map((c) => c.to));
+
+  if (repairRename && conflicts.length === 0) {
+    const appliedRenames = [];
+    const renamedOptions = existingOptions.map((option) => {
+      const candidate = candidates.find((c) => c.optionId === option.id);
+      if (!candidate) return buildOptionInput(option);
+      appliedRenames.push({ from: candidate.from, to: candidate.to });
+      return {
+        name: candidate.to,
+        color: STANDARD_COLUMNS.find((c) => c.name === candidate.to)?.color ?? "GRAY",
+        description: option.description ?? "",
+      };
+    });
+
+    const coveredStandards = new Set([...exactPresent, ...appliedRenames.map((r) => r.to)]);
+    const additiveMissing = STANDARD_COLUMNS.filter((c) => !coveredStandards.has(c.name));
+
+    return {
+      options: [...renamedOptions, ...additiveMissing],
+      repairs: {
+        additive: additiveMissing.map((c) => c.name),
+        renameCandidates: [],
+        renamesApplied: appliedRenames,
+        conflicts: [],
+      },
+    };
+  }
+
+  const coveredStandards = new Set([...exactPresent, ...candidateTargets]);
+  const additiveMissing = STANDARD_COLUMNS.filter((c) => !coveredStandards.has(c.name));
+
+  return {
+    options: [
+      ...existingOptions.map(buildOptionInput),
+      ...additiveMissing,
+    ],
+    repairs: {
+      additive: additiveMissing.map((c) => c.name),
+      renameCandidates: candidates.map((c) => ({ from: c.from, to: c.to })),
+      renamesApplied: [],
+      conflicts,
+    },
+  };
+}
+
+async function classifyAndRepairColumns(
+  fieldId,
+  existingOptions,
+  repairRename,
+  env,
+  runChild,
+) {
+  const classification = classifyOptions(existingOptions, repairRename);
+
+  const wouldAdd = classification.repairs.additive.length > 0;
+  const hasRenameActivity =
+    classification.repairs.renamesApplied.length > 0 ||
+    classification.repairs.renameCandidates.length > 0 ||
+    classification.repairs.conflicts.length > 0;
+
+  if (!wouldAdd && !hasRenameActivity) {
+    return { options: existingOptions, repairs: classification.repairs };
+  }
+
+  // When conflicts are present, do not mutate the field; surface the conflict.
+  if (classification.repairs.conflicts.length > 0) {
+    return { options: existingOptions, repairs: classification.repairs };
+  }
+
+  const payload = await ghGraphql(UPDATE_PROJECT_FIELD, {
+    fieldId,
+    options: JSON.stringify(classification.options),
+  }, env, runChild);
+
+  const updatedField = payload?.data?.updateProjectV2Field?.projectV2Field;
+  if (!updatedField) {
+    throw Object.assign(
+      new Error("Failed to update Status field with column repairs"),
+      { code: "UPDATE_FIELD_FAILED" },
+    );
+  }
+
+  return { options: updatedField.options ?? classification.options, repairs: classification.repairs };
+}
+
 // ── Column auto-repair ───────────────────────────────────────────────────
 
 const STANDARD_COLUMNS = [
@@ -525,10 +683,10 @@ async function main(args, { env = process.env, runChild } = {}) {
     );
 
     const existingColumns = statusField?.options?.map((o) => o.name) ?? [];
-    const missingColumns = STANDARD_COLUMN_NAMES.filter((c) => !existingColumns.includes(c));
+    const missingStandardColumns = STANDARD_COLUMN_NAMES.filter((c) => !existingColumns.includes(c));
 
-    if (statusField && missingColumns.length === 0) {
-      // All columns present — check repo link if requested
+    if (statusField && missingStandardColumns.length === 0 && !args.repairRename) {
+      // All standard columns already present and no rename request — check repo link.
       let linkedRepo = null;
       if (linkRepo) {
         const repoId = await resolveRepoId(linkRepo, env, child);
@@ -547,13 +705,25 @@ async function main(args, { env = process.env, runChild } = {}) {
           url: project.url,
           statusFieldId: statusField.id,
           ...(linkedRepo ? { linkedRepo } : {}),
+        },
+        repairs: {
+          additive: [],
+          renameCandidates: [],
+          renamesApplied: [],
+          conflicts: [],
         },
       };
     }
 
     if (statusField) {
-      // Auto-repair: add missing columns instead of throwing
-      await autoRepairColumns(statusField.id, statusField.options, env, child);
+      // Repair columns: additive by default, with optional --repair-rename reconciliation.
+      const { options: _repairedOptions, repairs } = await classifyAndRepairColumns(
+        statusField.id,
+        statusField.options,
+        args.repairRename ?? false,
+        env,
+        child,
+      );
 
       let linkedRepo = null;
       if (linkRepo) {
@@ -574,6 +744,7 @@ async function main(args, { env = process.env, runChild } = {}) {
           statusFieldId: statusField.id,
           ...(linkedRepo ? { linkedRepo } : {}),
         },
+        repairs,
       };
     }
 
