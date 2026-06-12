@@ -11,7 +11,7 @@ import { parsePrNumber, requireOptionValue, runChild } from "../_cli-primitives.
 import { fetchGithubReviewThreadsPayload } from "./capture-review-threads.mjs";
 import { parseRepoSlug } from "@pi-dev-loops/core/github/repo-slug";
 import { buildSnapshotFromPrFacts, interpretLoopState } from "@pi-dev-loops/core/loop/copilot-loop-state";
-import { loadDevLoopConfig, resolveRefinementConfig } from "@pi-dev-loops/core/config";
+import { loadDevLoopConfig, resolveRefinement } from "@pi-dev-loops/core/config";
 const BLOCKED_BY_COPILOT_COMMENT_STATUS = "blocked_by_copilot_comment";
 const SUPPRESSED_SAME_HEAD_CLEAN_STATUS = "suppressed_same_head_clean";
 const ROUND_CAP_REACHED_STATUS = "round_cap_reached";
@@ -202,6 +202,46 @@ async function detectSameHeadCleanConvergence(options, runtime, priorReviewState
     return false;
   }
 }
+async function detectRoundCapAutoRerequestEligibility(options, runtime, priorReviewState = {}, refinementConfig = {}) {
+  const {
+    requested = false,
+    prData = null,
+    copilotReviewPresent = false,
+    hasPendingReviewOnCurrentHead = false,
+    hasSubmittedReviewOnCurrentHead = false,
+  } = priorReviewState;
+  if (prData === null) {
+    return { eligible: false, interpretation: null };
+  }
+  try {
+    const threadsPayload = await fetchGithubReviewThreadsPayload(
+      { repo: options.repo, pr: options.pr },
+      runtime,
+    );
+    const parsedThreads = parseReviewThreads(threadsPayload);
+    const snapshot = buildSnapshotFromPrFacts({
+      prData,
+      prNumber: options.pr,
+      copilotReviewRequestStatus: hasPendingReviewOnCurrentHead || requested ? "requested" : "none",
+      copilotReviewPresent,
+      copilotReviewOnCurrentHead: hasSubmittedReviewOnCurrentHead,
+      unresolvedThreadCount: parsedThreads.summary.unresolvedThreads,
+      actionableThreadCount: parsedThreads.summary.actionableThreads,
+      copilotReviewRoundCount: priorReviewState.completedCopilotReviewRounds ?? 0,
+    });
+    const interpretation = interpretLoopState(snapshot, refinementConfig);
+    return {
+      eligible: interpretation.state === "ready_to_rerequest_review" && interpretation.autoRerequestEligible === true,
+      interpretation,
+    };
+  } catch (error) {
+    if (runtime?.env?.PI_DEV_LOOPS_DEBUG === "1") {
+      const detail = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[request-copilot-review] round-cap auto-rerequest detection unavailable: ${detail}\n`);
+    }
+    return { eligible: false, interpretation: null };
+  }
+}
 function getLastCopilotReviewHeadSha(prData) {
   const reviews = Array.isArray(prData?.reviews) ? prData.reviews : [];
   // Only consider submitted (non-PENDING) Copilot reviews.
@@ -365,13 +405,14 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       };
     }
   }
+  let refinementConfig = { maxCopilotRounds: 5 };
   let maxRounds = 5; // Built-in default; overridden by config when loadable
   try {
     const { config, errors } = await loadDevLoopConfig();
     if (!errors || errors.length === 0) {
-      const resolved = resolveRefinementConfig(config, "maxCopilotRounds");
-      if (Number.isFinite(resolved) && resolved > 0) {
-        maxRounds = resolved;
+      refinementConfig = resolveRefinement(config);
+      if (Number.isFinite(refinementConfig.maxCopilotRounds) && refinementConfig.maxCopilotRounds > 0) {
+        maxRounds = refinementConfig.maxCopilotRounds;
       }
     }
   } catch {
@@ -380,16 +421,24 @@ export async function performCopilotReviewRequest(options, { env = process.env, 
       && !before.requested
       && !before.hasPendingReviewOnCurrentHead) {
     if (!options.forceRerequestReview) {
-      return {
-        ok: true,
-        status: ROUND_CAP_REACHED_STATUS,
-        repo: options.repo,
-        pr: options.pr,
-        reviewer: "Copilot",
-        completedRounds: before.completedCopilotReviewRounds,
-        maxRounds,
-        detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
-      };
+      const roundCapAutoRerequest = await detectRoundCapAutoRerequestEligibility(
+        options,
+        { env, ghCommand },
+        before,
+        refinementConfig,
+      );
+      if (!roundCapAutoRerequest.eligible) {
+        return {
+          ok: true,
+          status: ROUND_CAP_REACHED_STATUS,
+          repo: options.repo,
+          pr: options.pr,
+          reviewer: "Copilot",
+          completedRounds: before.completedCopilotReviewRounds,
+          maxRounds,
+          detail: `Round cap of ${maxRounds} reached with ${before.completedCopilotReviewRounds} completed rounds. No further re-requests will be made.`,
+        };
+      }
     }
     // --force-rerequest-review: only bypass when there are new commits since the last review
     const currentHeadSha = typeof before.prData?.headRefOid === "string" && before.prData.headRefOid.trim().length > 0
