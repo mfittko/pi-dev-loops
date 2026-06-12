@@ -79,6 +79,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
     await doTransition(entry, "running", queue, repoRoot, opts);
 
     const boardSync = [];
+    const boardSyncDeps = opts.queueBoardSyncDependencies ?? {};
     const recordBoardSync = async (promise) => {
       const r = await promise;
       boardSync.push(r);
@@ -91,6 +92,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
       entry.target,
       "In Progress",
       opts.env ?? process.env,
+      boardSyncDeps,
     ));
 
     try {
@@ -105,12 +107,12 @@ export async function runQueue(repoRoot, repo, options = {}) {
           if (opts.mergeAuthorized) {
             await doTransition(entry, "merging", queue, repoRoot, opts);
             await doTransition(entry, "done", queue, repoRoot, opts, { retrospectiveWritten: true });
-            await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env));
+            await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env, boardSyncDeps));
           }
           // else: stays at gates_passing for future merge run
         } else {
           await doTransition(entry, "done", queue, repoRoot, opts);
-          await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env));
+          await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env, boardSyncDeps));
         }
         results.push({ target: entry.target, ok: true, entry: snapshotEntry(entry), boardSync });
       } else {
@@ -118,7 +120,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
       }
     } catch (err) {
       const fallbackColumn = nonSuccessBoardColumn(repoRoot, "Backlog");
-      await syncBoardStatus(repo, repoRoot, entry.target, fallbackColumn, opts.env ?? process.env);
+      await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, fallbackColumn, opts.env ?? process.env, boardSyncDeps));
 
       const failureKind = classifyFailure(err);
       const recoverable = isRecoverable(failureKind);

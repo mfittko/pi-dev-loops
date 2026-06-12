@@ -2,9 +2,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { main as moveQueueItemMain } from "../../../../scripts/projects/move-queue-item.mjs";
-import { main as ensureQueueBoardMain } from "../../../../scripts/projects/ensure-queue-board.mjs";
 
 const DEFAULT_NON_SUCCESS_COLUMN = "Backlog";
+
+// ── Local config loader ─────────────────────────────────────────────────
 
 function readDevloopsSettings(repoRoot) {
   const base = path.join(repoRoot, ".devloops");
@@ -33,17 +34,129 @@ export function loadBoardConfig(repoRoot) {
   return { enabled: false };
 }
 
+// ── Minimal project lookup (read-only, no create/repair) ────────────────
+
+const GET_USER_ID = [
+  "query($login:String!) {",
+  "  user(login:$login) { id }",
+  "}"
+].join("\n");
+
+const GET_ORG_ID = [
+  "query($login:String!) {",
+  "  organization(login:$login) { id }",
+  "}"
+].join("\n");
+
+const LIST_USER_PROJECTS = [
+  "query($login:String!, $after:String) {",
+  "  user(login:$login) {",
+  "    projectsV2(first:50, after:$after) {",
+  "      pageInfo { hasNextPage endCursor }",
+  "      nodes { id number title url }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+const LIST_ORG_PROJECTS = [
+  "query($login:String!, $after:String) {",
+  "  organization(login:$login) {",
+  "    projectsV2(first:50, after:$after) {",
+  "      pageInfo { hasNextPage endCursor }",
+  "      nodes { id number title url }",
+  "    }",
+  "  }",
+  "}"
+].join("\n");
+
+async function ghGraphql(query, vars, env, runChild) {
+  const { runChild: defaultRunChild } = await import("../../../../scripts/_cli-primitives.mjs");
+  const child = runChild ?? defaultRunChild;
+  const fieldArgs = [];
+  for (const [key, value] of Object.entries(vars)) {
+    fieldArgs.push("--field", `${key}=${value}`);
+  }
+  const result = await child(
+    "gh",
+    ["api", "graphql", "--field", `query=${query}`, ...fieldArgs],
+    env,
+  );
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    throw Object.assign(new Error(`gh api graphql failed: ${detail}`), { code: "GH_API_ERROR" });
+  }
+  const { parseJsonText } = await import("../../../../scripts/_core-helpers.mjs");
+  const payload = parseJsonText(result.stdout);
+  if (payload.errors && payload.errors.length > 0) {
+    throw Object.assign(
+      new Error(`GraphQL errors: ${payload.errors.map((e) => e.message).join("; ")}`),
+      { code: "GRAPHQL_ERROR" },
+    );
+  }
+  return payload;
+}
+
+async function resolveOwner(login, env, runChild) {
+  const userPayload = await ghGraphql(GET_USER_ID, { login }, env, runChild);
+  if (userPayload?.data?.user?.id) {
+    return { id: userPayload.data.user.id, kind: "user" };
+  }
+  const orgPayload = await ghGraphql(GET_ORG_ID, { login }, env, runChild);
+  if (orgPayload?.data?.organization?.id) {
+    return { id: orgPayload.data.organization.id, kind: "org" };
+  }
+  throw Object.assign(
+    new Error(`Could not resolve owner ID for "${login}"`),
+    { code: "NO_USER_ID" },
+  );
+}
+
+async function listAllProjects(login, kind, env, runChild) {
+  const query = kind === "org" ? LIST_ORG_PROJECTS : LIST_USER_PROJECTS;
+  const projects = [];
+  let after = null;
+  while (true) {
+    const vars = { login };
+    if (after) vars.after = after;
+    const payload = await ghGraphql(query, vars, env, runChild);
+    const connection = kind === "org"
+      ? payload?.data?.organization?.projectsV2
+      : payload?.data?.user?.projectsV2;
+    const nodes = connection?.nodes ?? [];
+    projects.push(...nodes);
+    const pageInfo = connection?.pageInfo ?? {};
+    if (!pageInfo.hasNextPage) break;
+    if (!pageInfo.endCursor) {
+      throw Object.assign(
+        new Error("Invalid projects list payload: hasNextPage is true but endCursor is missing"),
+        { code: "GH_API_ERROR" },
+      );
+    }
+    after = pageInfo.endCursor;
+  }
+  return projects;
+}
+
 async function resolveProjectNumber(repo, config, env, runChild) {
   if (config.projectNumber) return config.projectNumber;
   if (config.boardTitle) {
-    const result = await ensureQueueBoardMain(
-      { repo, title: config.boardTitle },
-      { env, runChild },
-    );
-    return result?.project?.number ?? null;
+    const [owner] = repo.split("/");
+    const { kind } = await resolveOwner(owner, env, runChild);
+    const projects = await listAllProjects(owner, kind, env, runChild);
+    const match = projects.find((p) => p.title === config.boardTitle);
+    if (!match) {
+      throw Object.assign(
+        new Error(`Board title "${config.boardTitle}" not found under "${owner}"`),
+        { code: "BOARD_NOT_FOUND" },
+      );
+    }
+    return match.number;
   }
   return null;
 }
+
+// ── Public API ──────────────────────────────────────────────────────────
 
 export async function syncBoardStatus(
   repo,
@@ -58,7 +171,12 @@ export async function syncBoardStatus(
     return { ok: true, skipped: true, reason: "board not configured" };
   }
 
-  const projectNumber = await resolveProjectNumber(repo, config, env, dependencies.runChild);
+  let projectNumber;
+  try {
+    projectNumber = await resolveProjectNumber(repo, config, env, dependencies.runChild);
+  } catch (err) {
+    return { ok: true, skipped: true, reason: err.message ?? "board lookup failed" };
+  }
   if (!projectNumber) {
     return { ok: true, skipped: true, reason: "could not resolve board project" };
   }
@@ -71,7 +189,6 @@ export async function syncBoardStatus(
     );
     return { ok: true, skipped: false, result };
   } catch (err) {
-    // Fail-open: log the problem but do not block the queue.
     return { ok: true, skipped: true, reason: err.message ?? "board sync failed" };
   }
 }

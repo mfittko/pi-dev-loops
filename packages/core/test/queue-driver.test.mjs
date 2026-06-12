@@ -284,3 +284,71 @@ test("runQueue handles empty queue", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("runQueue wires board transitions when configured and records them", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "queue-driver-board-"));
+  try {
+    await writeFile(path.join(dir, ".devloops"), "queue:\n  projectNumber: 7\n");
+    const queue = {
+      version: 1,
+      entries: [createEntry(101, "issue")],
+    };
+    await writeQueue(dir, queue);
+
+    const moves = [];
+    const result = await runQueue(dir, "test/repo", {
+      mergeAuthorized: false,
+      runEntry: async () => ({ ok: true, pr: null }),
+      queueBoardSyncDependencies: {
+        moveQueueItem: async (args) => {
+          moves.push({ ...args });
+          return { ok: true, item: { newColumn: args.toColumn } };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(moves.length, 2);
+    assert.equal(moves[0].toColumn, "In Progress");
+    assert.equal(moves[1].toColumn, "Done");
+    assert.equal(result.results[0].boardSync.length, 2);
+    assert.equal(result.results[0].boardSync[0].skipped, false);
+    assert.equal(result.results[0].boardSync[1].skipped, false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runQueue records fallback board transition on failure", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "queue-driver-board-fail-"));
+  try {
+    await writeFile(path.join(dir, ".devloops"), "queue:\n  projectNumber: 7\n");
+    const queue = {
+      version: 1,
+      entries: [createEntry(102, "issue")],
+    };
+    await writeQueue(dir, queue);
+
+    const moves = [];
+    const result = await runQueue(dir, "test/repo", {
+      mergeAuthorized: false,
+      runEntry: async () => {
+        throw new Error("blocked by human comment — needs decision");
+      },
+      queueBoardSyncDependencies: {
+        moveQueueItem: async (args) => {
+          moves.push({ ...args });
+          return { ok: true, item: { newColumn: args.toColumn } };
+        },
+      },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(moves.length, 2);
+    assert.equal(moves[0].toColumn, "In Progress");
+    assert.equal(moves[1].toColumn, "Backlog");
+    assert.equal(result.results[0].boardSync.length, 2);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

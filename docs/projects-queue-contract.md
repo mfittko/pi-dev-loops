@@ -244,17 +244,24 @@ If neither `queue.projectNumber` nor `queue.boardTitle` is set, no board transit
 
 ### Result shape
 
-The queue driver returns a `boardSync` field on each entry result when integration is configured:
+The queue driver returns a `boardSync` array on each entry result. Each element records one attempted transition:
 
 ```json
-{
-  "ok": true,
-  "skipped": false,
-  "result": { "item": { "newColumn": "In Progress" } }
-}
+[
+  {
+    "ok": true,
+    "skipped": false,
+    "result": { "ok": true, "item": { "newColumn": "In Progress" } }
+  },
+  {
+    "ok": true,
+    "skipped": false,
+    "result": { "ok": true, "item": { "newColumn": "Done" } }
+  }
+]
 ```
 
-When the board is not configured or the sync fails in fail-open mode, `skipped` is `true` and a `reason` explains why.
+The inner `result.ok` / `result.item` shape is owned by the underlying `move-queue-item.mjs` script. When the board is not configured or the sync fails in fail-open mode, `skipped` is `true` and a `reason` explains why.
 
 ## Configuration shape
 
