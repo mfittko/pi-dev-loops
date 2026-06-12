@@ -263,7 +263,6 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head pen
     assert.equal(output.state, "waiting_for_ci");
     assert.equal(output.snapshot.ciStatus, "pending");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
-    assert.deepEqual(output.snapshot.excludedFailureDetails, ["copilot"]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -1510,6 +1509,7 @@ test("detect-copilot-loop-state does not false-block on hidden failed head check
     // Hidden failure correctly ignored; visible CI is success so no false block
     assert.equal(output.snapshot.ciStatus, "success");
     assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.deepEqual(output.snapshot.excludedFailureDetails, ["copilot"]);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
