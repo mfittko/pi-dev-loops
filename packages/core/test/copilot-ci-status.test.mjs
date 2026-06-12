@@ -162,3 +162,40 @@ test("normalizeHeadScopedCiContract emits blocked semantics for failure", () => 
   assert.equal(blocked.semantics.blocked, true);
   assert.equal(blocked.semantics.timeoutDisposition, "not_applicable");
 });
+
+test("summarizeHeadScopedCheckRunsSignal returns failureDetails for failed runs", () => {
+  const summary = summarizeHeadScopedCheckRunsSignal({
+    check_runs: [
+      { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+      { status: "COMPLETED", conclusion: "FAILURE", name: "copilot" },
+      { status: "COMPLETED", conclusion: "FAILURE", name: "lint" },
+    ],
+  });
+
+  assert.equal(summary.status, "failure");
+  assert.deepEqual(summary.failureDetails, ["copilot", "lint"]);
+});
+
+test("summarizeHeadScopedCheckRunsSignal omits empty names from failureDetails", () => {
+  const summary = summarizeHeadScopedCheckRunsSignal({
+    check_runs: [
+      { status: "COMPLETED", conclusion: "FAILURE" },
+      { status: "COMPLETED", conclusion: "FAILURE", name: "" },
+      { status: "COMPLETED", conclusion: "FAILURE", name: "lint" },
+    ],
+  });
+
+  assert.equal(summary.status, "failure");
+  assert.deepEqual(summary.failureDetails, ["lint"]);
+});
+
+test("summarizeHeadScopedCheckRunsSignal returns failureDetails undefined when no failures", () => {
+  const summary = summarizeHeadScopedCheckRunsSignal({
+    check_runs: [
+      { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+    ],
+  });
+
+  assert.equal(summary.status, "success");
+  assert.equal(summary.failureDetails, undefined);
+});

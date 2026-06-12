@@ -614,7 +614,7 @@ test.skip("detect-copilot-loop-state keeps pending and failure current-head CI a
     },
     {
       name: "failure",
-      checkRuns: '{"check_runs":[{"status":"COMPLETED","conclusion":"FAILURE"}]}\n',
+      checkRuns: '{"check_runs":[{"status":"COMPLETED","conclusion":"FAILURE","name":"ci-old-head"}]}\n',
       statuses: '{"statuses":[]}\n',
       expectedCiStatus: "failure",
       expectedState: "blocked_needs_user_decision",
@@ -906,7 +906,7 @@ test("detect-copilot-loop-state fails closed from old-head green to new-head fai
       },
       {
         assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
-        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"FAILURE"}]}\n',
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"FAILURE","name":"ci-old-head"}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
@@ -969,7 +969,7 @@ test("detect-copilot-loop-state uses head-scoped check-runs when commit status r
       },
       {
         assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
-        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"FAILURE"}]}\n',
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"FAILURE","name":"ci-old-head"}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
@@ -1243,7 +1243,7 @@ test("detect-copilot-loop-state treats mixed head-scoped failure-plus-pending ch
       },
       {
         assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
-        stdout: '{"check_runs":[{"status":"IN_PROGRESS","conclusion":null},{"status":"COMPLETED","conclusion":"FAILURE"}]}\n',
+        stdout: '{"check_runs":[{"status":"IN_PROGRESS","conclusion":null},{"status":"COMPLETED","conclusion":"FAILURE","name":"ci-old-head"}]}\n',
       },
       {
         assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
@@ -1441,6 +1441,74 @@ test.skip("detect-copilot-loop-state allows clean convergence once current-head 
     assert.equal(output.sameHeadCleanConverged, true);
     assert.equal(output.loopDisposition, "clean_converged");
     assert.equal(output.terminal, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state does not false-block on hidden failed head check-run (#740)", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-auto-740-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-old-submitted",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "CHANGES_REQUESTED",
+              commit: { oid: "oldsha" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: JSON.stringify({
+          check_runs: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci" },
+            { status: "COMPLETED", conclusion: "FAILURE", name: "copilot" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    // PR-visible rollup is success, so hidden head-scoped failure must not downgrade.
+    assert.notEqual(output.snapshot.ciStatus, "failure");
+    assert.notEqual(output.state, "blocked_needs_user_decision");
+    // Should stay waiting for CI since the hidden failure is ignored and actual visible CI is success
+    assert.equal(output.snapshot.ciStatus, "success");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
