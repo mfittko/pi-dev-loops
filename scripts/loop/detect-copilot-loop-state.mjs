@@ -412,9 +412,11 @@ export async function runCli(
     return;
   }
   let snapshot;
+  let interpretationInput;
   if (options.inputPath !== undefined) {
     const text = await readFile(options.inputPath, "utf8");
-    snapshot = normalizeSnapshot(parseJsonText(text));
+    interpretationInput = parseJsonText(text);
+    snapshot = normalizeSnapshot(interpretationInput);
   } else {
     snapshot = await autoDetectSnapshot(
       {
@@ -423,13 +425,14 @@ export async function runCli(
       },
       { env, ghCommand },
     );
+    interpretationInput = snapshot;
   }
   let interpretation;
   const config = await loadDevLoopConfig({ repoRoot: path.resolve(process.cwd()) });
   const refinementConfig = config.errors.length > 0
     ? resolveRefinement({ version: 1 })
     : resolveRefinement(config.config);
-  interpretation = interpretLoopState(snapshot, refinementConfig);
+  interpretation = interpretLoopState(interpretationInput, refinementConfig);
   const interpretationSummary = summarizeLoopInterpretation(interpretation);
   stdout.write(`${JSON.stringify({
     ok: true,

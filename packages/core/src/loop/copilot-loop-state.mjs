@@ -229,6 +229,12 @@ function isAutoRerequestEligible(snapshot, state) {
  */
 const VALID_SIGNAL_LEVELS = new Set(["high", "mid", "low"]);
 
+function hasExplicitCurrentHeadReviewSignal(raw) {
+  return Boolean(raw)
+    && typeof raw === "object"
+    && Object.prototype.hasOwnProperty.call(raw, "copilotReviewOnCurrentHead");
+}
+
 export function normalizeSnapshot(raw) {
   if (!raw || typeof raw !== "object") {
     throw new Error("Snapshot must be a non-null object");
@@ -363,7 +369,9 @@ export function interpretLoopState(snapshot, refinementConfig) {
       && state !== STATE.BLOCKED_NEEDS_USER_DECISION) {
     const ciClean = s.ciStatus === "success" || s.ciStatus === "crediblyGreen";
     const cleanThreads = s.unresolvedThreadCount === 0;
-    const headAdvancedSinceLastSubmittedCopilotReview = s.copilotReviewPresent && !s.copilotReviewOnCurrentHead;
+    const headAdvancedSinceLastSubmittedCopilotReview = s.copilotReviewPresent
+      && hasExplicitCurrentHeadReviewSignal(snapshot)
+      && !s.copilotReviewOnCurrentHead;
     if (cleanThreads && ciClean && headAdvancedSinceLastSubmittedCopilotReview) {
       state = STATE.READY_TO_REREQUEST_REVIEW;
     } else if (cleanThreads && ciClean) {

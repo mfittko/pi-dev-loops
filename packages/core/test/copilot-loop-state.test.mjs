@@ -949,6 +949,26 @@ test("interpretLoopState re-opens to READY_TO_REREQUEST_REVIEW when round cap re
   assert.equal(result.roundCapCleanEligible, false);
 });
 
+test("interpretLoopState fails closed to ROUND_CAP_CLEAN_FALLBACK when round-cap snapshot omits current-head review signal", () => {
+  const snapshot = {
+    prExists: true,
+    prNumber: 17,
+    copilotReviewRequestStatus: "none",
+    copilotReviewPresent: true,
+    unresolvedThreadCount: 0,
+    actionableThreadCount: 0,
+    copilotReviewRoundCount: 5,
+    ciStatus: "success",
+  };
+
+  const refinementConfig = { maxCopilotRounds: 5 };
+
+  const result = interpretLoopState(snapshot, refinementConfig);
+  assert.equal(result.state, STATE.ROUND_CAP_CLEAN_FALLBACK);
+  assert.equal(result.autoRerequestEligible, false);
+  assert.equal(result.roundCapCleanEligible, true);
+});
+
 test("interpretLoopState routes to ROUND_CAP_CLEAN_FALLBACK at round cap when current head already has submitted Copilot review", () => {
   const snapshot = {
     prExists: true,
