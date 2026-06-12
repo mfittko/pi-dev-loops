@@ -358,7 +358,7 @@ export function interpretLoopState(snapshot, refinementConfig) {
   // all prior feedback is resolved, and CI is green/credibly green again. In that case
   // the state re-opens to READY_TO_REREQUEST_REVIEW instead of terminating as clean fallback.
   // Does NOT interrupt an in-flight review request (requested/already-requested).
-  const maxRounds = refinementConfig?.maxCopilotRounds; console.error("CORE max", maxRounds, "round", s.copilotReviewRoundCount, "state", state);
+  const maxRounds = refinementConfig?.maxCopilotRounds;
   const reviewInFlight = s.copilotReviewRequestStatus === "requested"
     || s.copilotReviewRequestStatus === "already-requested";
   if (typeof maxRounds === "number" && maxRounds > 0
