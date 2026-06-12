@@ -3,6 +3,12 @@
 Single entrypoint: `dev-loop`. Prefer GitHub-first path. KISS, SRP, YAGNI.
 Work test-first, ≥90% coverage. `npm run verify` for full validation.
 
+## PR body rules
+
+- Use the PR template at `.github/pull_request_template.md`.
+- Render acceptance criteria, definition-of-done items, and task lists as real GitHub markdown checkboxes (`- [ ]` / `- [x]`).
+- Never wrap checkbox markers like `[x]` in backticks.
+
 ## Canonical rule docs (single owner per rule)
 
 Confirmation → `../skills/docs/confirmation-rules.md`
