@@ -349,7 +349,7 @@ export function interpretLoopState(snapshot, refinementConfig) {
   // the normal fix loop, including unresolved threads, pending CI, and CI failures.
   // Clean PRs are eligible for pre_approval_gate fallback; everything else is a hard stop.
   // Does NOT interrupt an in-flight review request (requested/already-requested).
-  const maxRounds = refinementConfig?.maxCopilotRounds;
+  const maxRounds = refinementConfig?.maxCopilotRounds; console.error("CORE max", maxRounds, "round", s.copilotReviewRoundCount, "state", state);
   const reviewInFlight = s.copilotReviewRequestStatus === "requested"
     || s.copilotReviewRequestStatus === "already-requested";
   if (typeof maxRounds === "number" && maxRounds > 0

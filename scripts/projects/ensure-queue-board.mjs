@@ -453,9 +453,10 @@ for (const [standard, synonyms] of Object.entries(RENAME_EQUIVALENTS)) {
 }
 
 function buildOptionInput(option) {
+  const standard = STANDARD_COLUMNS.find((c) => c.name === option.name);
   return {
     name: option.name,
-    color: option.color ?? "GRAY",
+    color: option.color ?? standard?.color ?? "GRAY",
     description: option.description ?? "",
   };
 }
@@ -552,13 +553,10 @@ async function classifyAndRepairColumns(
 ) {
   const classification = classifyOptions(existingOptions, repairRename);
 
-  const wouldAdd = classification.repairs.additive.length > 0;
-  const hasRenameActivity =
-    classification.repairs.renamesApplied.length > 0 ||
-    classification.repairs.renameCandidates.length > 0 ||
-    classification.repairs.conflicts.length > 0;
+  const willRename = classification.repairs.renamesApplied.length > 0;
+  const willAdd = classification.repairs.additive.length > 0;
 
-  if (!wouldAdd && !hasRenameActivity) {
+  if (!willRename && !willAdd) {
     return { options: existingOptions, repairs: classification.repairs };
   }
 

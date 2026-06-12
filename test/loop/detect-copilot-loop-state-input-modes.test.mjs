@@ -128,6 +128,7 @@ test("detect-copilot-loop-state --input routes clean exhausted rounds to round_c
       prNumber: 17,
       copilotReviewRequestStatus: "none",
       copilotReviewPresent: true,
+      copilotReviewOnCurrentHead: true,
       unresolvedThreadCount: 0,
       actionableThreadCount: 0,
       copilotReviewRoundCount: 5,

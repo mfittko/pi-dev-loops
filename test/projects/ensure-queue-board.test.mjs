@@ -704,17 +704,12 @@ describe("rename/reconcile drift", () => {
   });
 
   it("detects rename candidates without mutating when flag is absent", async () => {
-    const expectedOptions = [
-      { id: "opt1", name: "Backlog" },
-      { id: "opt2", name: "Ready" },
-      { id: "opt3", name: "In Progress" },
-      { id: "opt4", name: "Done" },
-    ];
+    // No update response is provided; if the implementation mutates the field,
+    // mockRunChild will throw on the unexpected call.
     const responses = [
       { payload: userPayload() },
       { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
       { payload: getFieldsResponse([RENAMED_FIELD]) },
-      { payload: updateFieldResponse(expectedOptions) },
     ];
     const result = await main(
       { repo: "mfittko/pi-dev-loops" },
