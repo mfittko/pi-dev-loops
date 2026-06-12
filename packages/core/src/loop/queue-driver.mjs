@@ -13,11 +13,13 @@ import {
   RECOVERABLE_FAILURES,
   appendBugIssue,
 } from "./queue-state.mjs";
+import { syncBoardStatus, nonSuccessBoardColumn } from "./queue-board-sync.mjs";
 
 export const DEFAULT_QUEUE_DRIVER_OPTIONS = {
   mergeAuthorized: false,
   reDispatchMaxRetries: 1,
   maxAutoFiledIssues: 10,
+  env: process.env,
 };
 
 export function classifyFailure(error) {
@@ -76,6 +78,21 @@ export async function runQueue(repoRoot, repo, options = {}) {
     }
     await doTransition(entry, "running", queue, repoRoot, opts);
 
+    const boardSync = [];
+    const recordBoardSync = async (promise) => {
+      const r = await promise;
+      boardSync.push(r);
+      return r;
+    };
+
+    await recordBoardSync(syncBoardStatus(
+      repo,
+      repoRoot,
+      entry.target,
+      "In Progress",
+      opts.env ?? process.env,
+    ));
+
     try {
       const entryResult = opts.runEntry
         ? await opts.runEntry(entry, repo, opts)
@@ -88,16 +105,21 @@ export async function runQueue(repoRoot, repo, options = {}) {
           if (opts.mergeAuthorized) {
             await doTransition(entry, "merging", queue, repoRoot, opts);
             await doTransition(entry, "done", queue, repoRoot, opts, { retrospectiveWritten: true });
+            await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env));
           }
           // else: stays at gates_passing for future merge run
         } else {
           await doTransition(entry, "done", queue, repoRoot, opts);
+          await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env));
         }
-        results.push({ target: entry.target, ok: true, entry: snapshotEntry(entry) });
+        results.push({ target: entry.target, ok: true, entry: snapshotEntry(entry), boardSync });
       } else {
         throw new Error(entryResult.error || "Entry failed");
       }
     } catch (err) {
+      const fallbackColumn = nonSuccessBoardColumn(repoRoot, "Backlog");
+      await syncBoardStatus(repo, repoRoot, entry.target, fallbackColumn, opts.env ?? process.env);
+
       const failureKind = classifyFailure(err);
       const recoverable = isRecoverable(failureKind);
 
@@ -107,7 +129,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
         });
         results.push({
           target: entry.target, ok: false, recoverable: true,
-          failureKind, entry: snapshotEntry(entry),
+          failureKind, entry: snapshotEntry(entry), boardSync,
         });
       } else {
         await doTransition(entry, "blocked", queue, repoRoot, opts, {
@@ -119,7 +141,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
         }
         results.push({
           target: entry.target, ok: false, recoverable: false,
-          failureKind, entry: snapshotEntry(entry),
+          failureKind, entry: snapshotEntry(entry), boardSync,
         });
       }
     }

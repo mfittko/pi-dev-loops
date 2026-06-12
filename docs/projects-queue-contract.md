@@ -216,6 +216,46 @@ Auto-repair covers:
 Auto-repair does NOT remove or rename existing columns. Column removal/reordering remains
 a manual operation via the GitHub Projects UI.
 
+
+## Lifecycle status transitions
+
+When a queue board is configured, the queue driver may optionally write bounded Status transitions back to the board. This is **opt-in** and **fail-open**: if the board is absent, misconfigured, or the GitHub API fails, the queue run continues and reports the sync problem in the result.
+
+### Transition matrix
+
+| Queue event | Default target Status | Configurable override | Notes |
+|---|---|---|---|
+| Item picked up by `runQueue` | `In Progress` | none | Fired after the entry transitions to `running`. |
+| `runEntry` succeeds | `Done` | none | Fired when the entry reaches `done`. |
+| `runEntry` throws (any failure) | `Backlog` | `queue.nonSuccessStatus` | Fired before the entry is marked `failed`/`blocked`. |
+
+### Configuration
+
+Board integration is active only when `.devloops` at repo root identifies a board:
+
+```yaml
+queue:
+  projectNumber: 5          # direct project number
+  # OR boardTitle: "Dev Loop Queue"
+  nonSuccessStatus: Backlog # optional fallback column for non-success outcomes
+```
+
+If neither `queue.projectNumber` nor `queue.boardTitle` is set, no board transitions are attempted and queue behavior is unchanged.
+
+### Result shape
+
+The queue driver returns a `boardSync` field on each entry result when integration is configured:
+
+```json
+{
+  "ok": true,
+  "skipped": false,
+  "result": { "item": { "newColumn": "In Progress" } }
+}
+```
+
+When the board is not configured or the sync fails in fail-open mode, `skipped` is `true` and a `reason` explains why.
+
 ## Configuration shape
 
 Queue board configuration lives under `.devloops` at repo root. All keys are optional;
