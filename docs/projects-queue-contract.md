@@ -26,7 +26,7 @@ fall back to positional argument ordering when no board is configured. Setting u
 a one-time operator action, not a startup requirement.
 
 Tooling never mutates project/field structure without explicit operator invocation of the
-bootstrap wrapper (`node scripts/projects/ensure-queue-board.mjs`). Runtime queue operations only read/write item
+bootstrap wrapper (`dev-loops project ensure`). Runtime queue operations only read/write item
 position and Status field values.
 
 ## Board identification
@@ -180,7 +180,7 @@ board validates preconditions first:
 
 ### Idempotent bootstrap exception
 
-The `node scripts/projects/ensure-queue-board.mjs` bootstrap wrapper has relaxed fail-closed behavior: it
+The `dev-loops project ensure` bootstrap wrapper has relaxed fail-closed behavior: it
 **creates** a missing project and/or Status field with conventional columns. This is the only
 tool allowed to mutate project structure. Runtime queue helpers (list, move, add, reorder)
 never create or modify project/field structure.
@@ -203,7 +203,7 @@ stderr output.
 
 ## Column auto-repair
 
-The bootstrap wrapper (`node scripts/projects/ensure-queue-board.mjs`) performs automatic column repair
+The bootstrap wrapper (`dev-loops project ensure`) performs automatic column repair
 when the Status field exists but has non-standard columns. Instead of throwing, it calls
 `updateProjectV2Field` to add missing standard columns (`Backlog`, `Next Up`, `In Progress`,
 `Done`). Non-standard columns are left in place — only missing columns are added.

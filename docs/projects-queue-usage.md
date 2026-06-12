@@ -28,7 +28,7 @@ No configuration file entry is required — helpers use explicit CLI arguments.
 First, bootstrap the board (one-time):
 
 ```sh
-node scripts/projects/ensure-queue-board.mjs --repo <owner/name>
+dev-loops project ensure --repo <owner/name>
 ```
 
 The wrapper emits the project number and URL. Use the project number in subsequent
@@ -43,56 +43,56 @@ stdout and structured errors on stderr. All accept `--help` for usage.
 
 ```sh
 # List all items in a project
-node scripts/projects/list-queue-items.mjs --repo mfittko/pi-dev-loops --project 1
+dev-loops project list --repo mfittko/pi-dev-loops --project 1
 
 # List only items in "Next Up" column
-node scripts/projects/list-queue-items.mjs --repo mfittko/pi-dev-loops --project 1 --column "Next Up"
+dev-loops project list --repo mfittko/pi-dev-loops --project 1 --column "Next Up"
 
 # Limit to top 5 items
-node scripts/projects/list-queue-items.mjs --repo mfittko/pi-dev-loops --project 1 --limit 5
+dev-loops project list --repo mfittko/pi-dev-loops --project 1 --limit 5
 ```
 
 ### Add an item to the queue
 
 ```sh
 # Add issue #42 to the Backlog column (default)
-node scripts/projects/add-queue-item.mjs --repo mfittko/pi-dev-loops --project 1 --item 42
+dev-loops project add --repo mfittko/pi-dev-loops --project 1 --item 42
 
 # Add issue #42 to a specific column
-node scripts/projects/add-queue-item.mjs --repo mfittko/pi-dev-loops --project 1 --item 42 --status "Next Up"
+dev-loops project add --repo mfittko/pi-dev-loops --project 1 --item 42 --status "Next Up"
 ```
 
 ### Move an item between columns
 
 ```sh
 # Move issue #42 from its current column to In Progress
-node scripts/projects/move-queue-item.mjs --repo mfittko/pi-dev-loops --project 1 --item 42 --to-column "In Progress"
+dev-loops project move --repo mfittko/pi-dev-loops --project 1 --item 42 --to-column "In Progress"
 
 # Move a project item by its node ID
-node scripts/projects/move-queue-item.mjs --repo mfittko/pi-dev-loops --project 1 --item "PVTI_..." --to-column "Done"
+dev-loops project move --repo mfittko/pi-dev-loops --project 1 --item "PVTI_..." --to-column "Done"
 ```
 
 ### Reorder items
 
 ```sh
 # Move issue #42 to the top of the column
-node scripts/projects/reorder-queue-item.mjs --repo mfittko/pi-dev-loops --project 1 --item 42
+dev-loops project reorder --repo mfittko/pi-dev-loops --project 1 --item 42
 
 # Move issue #42 after issue #17
-node scripts/projects/reorder-queue-item.mjs --repo mfittko/pi-dev-loops --project 1 --item 42 --after 17
+dev-loops project reorder --repo mfittko/pi-dev-loops --project 1 --item 42 --after 17
 
 # Reorder by project item node IDs
-node scripts/projects/reorder-queue-item.mjs --repo mfittko/pi-dev-loops --project 1 --item "PVTI_abc" --after "PVTI_xyz"
+dev-loops project reorder --repo mfittko/pi-dev-loops --project 1 --item "PVTI_abc" --after "PVTI_xyz"
 ```
 
 ### Typical workflow
 
-1. Bootstrap the board once: `node scripts/projects/ensure-queue-board.mjs --repo <owner/name>`
-2. Add items as they are queued: `node scripts/projects/add-queue-item.mjs --repo ... --project <n> --item <issue>`
-3. Reorder by priority: drag in the GitHub UI, or use `reorder-queue-item.mjs`
-4. When a worker picks up an item: `node scripts/projects/move-queue-item.mjs ... --to-column "In Progress"`
-5. When done: `node scripts/projects/move-queue-item.mjs ... --to-column "Done"`
-6. Inspect the queue at any time: `node scripts/projects/list-queue-items.mjs ...`
+1. Bootstrap the board once: `dev-loops project ensure --repo <owner/name>`
+2. Add items as they are queued: `dev-loops project add --repo ... --project <n> --item <issue>`
+3. Reorder by priority: drag in the GitHub UI, or use `dev-loops project reorder`
+4. When a worker picks up an item: `dev-loops project move ... --to-column "In Progress"`
+5. When done: `dev-loops project move ... --to-column "Done"`
+6. Inspect the queue at any time: `dev-loops project list ...`
 
 ## Fail-closed behavior
 
@@ -123,7 +123,7 @@ Exit codes:
 
 ### Idempotent bootstrap exception
 
-The `ensure-queue-board.mjs` bootstrap wrapper is the only helper allowed to **create**
+The `dev-loops project ensure` bootstrap wrapper is the only helper allowed to **create**
 project structure. It safely re-runs: if the board and Status field already exist, it exits
 clean with the existing project details. Runtime helpers (list, move, add, reorder) never
 create or modify project/field structure.

@@ -2,7 +2,7 @@
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { runChild as _runChild } from "../_cli-primitives.mjs";
 
-const USAGE = `Usage: node scripts/projects/reorder-queue-item.mjs --repo <owner/name> --project <number|id> --item <number|node-id> [--after <number|node-id>]
+const USAGE = `Usage: dev-loops project reorder --repo <owner/name> --project <number|id> --item <number|node-id> [--after <number|node-id>]
 
 Reorder a GitHub Projects V2 item by board position via updateProjectV2ItemPosition.
 Moves item to top when no --after is provided, or after the specified item.

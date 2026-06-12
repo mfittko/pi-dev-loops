@@ -17,7 +17,7 @@ The board provides durable, visible, shared state for queue ordering and item st
 Run the idempotent bootstrap wrapper:
 
 ```sh
-node scripts/projects/ensure-queue-board.mjs --repo mfittko/pi-dev-loops
+dev-loops project ensure --repo mfittko/pi-dev-loops
 ```
 
 This creates a project named "Dev Loop Queue" (default) under the `mfittko` user:
@@ -40,7 +40,7 @@ Safe to re-run — exits clean if the board already exists.
 #### Custom title
 
 ```sh
-node scripts/projects/ensure-queue-board.mjs --repo mfittko/pi-dev-loops --title "My Queue"
+dev-loops project ensure --repo mfittko/pi-dev-loops --title "My Queue"
 ```
 
 ### 2. Verify the Status field
@@ -80,7 +80,7 @@ Dev-loop queue wrappers will:
 - **Reorder** items when the operator adjusts priority via `--after` dependencies or manual intervention
 - **Fall back** gracefully when the board is absent: positional argument order takes over, and no board mutations are attempted
 
-Helper commands for these operations will be added in future PRs alongside the bootstrap wrapper.
+Use `dev-loops project --help` to inspect the queue helper surface and per-subcommand `--help` for details.
 
 ### Fail-closed behavior
 

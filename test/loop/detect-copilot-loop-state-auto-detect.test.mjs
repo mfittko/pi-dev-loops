@@ -532,6 +532,98 @@ test("detect-copilot-loop-state keeps zero-suite current-head CI at none under r
   }
 });
 
+
+test("detect-copilot-loop-state re-opens round-cap clean PRs when new commits land after resolved comments", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-round-cap-rerequest-"));
+
+  try {
+    const emptyThreads = JSON.stringify({
+      data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+    });
+
+    const { env } = await writeGhStub(tempDir, [
+      {
+        assertArgs: ["pr", "view", "17", "--repo", "owner/repo"],
+        stdout: JSON.stringify({
+          isDraft: false,
+          state: "OPEN",
+          number: 17,
+          headRefOid: "newsha",
+          reviews: [
+            {
+              id: "r-1",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T08:00:00Z",
+              commit: { oid: "oldsha-1" },
+            },
+            {
+              id: "r-2",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T09:00:00Z",
+              commit: { oid: "oldsha-2" },
+            },
+            {
+              id: "r-3",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T10:00:00Z",
+              commit: { oid: "oldsha-3" },
+            },
+            {
+              id: "r-4",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T11:00:00Z",
+              commit: { oid: "oldsha-4" },
+            },
+            {
+              id: "r-5",
+              author: { login: "copilot-pull-request-reviewer[bot]" },
+              state: "COMMENTED",
+              submittedAt: "2026-06-02T12:00:00Z",
+              commit: { oid: "oldsha-5" },
+            },
+          ],
+          statusCheckRollup: [
+            { status: "COMPLETED", conclusion: "SUCCESS", name: "ci-old-head" },
+          ],
+        }) + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/pulls/17/requested_reviewers"],
+        stdout: '{"users":[],"teams":[]}\n',
+      },
+      {
+        assertArgs: ["api", "graphql"],
+        stdout: emptyThreads + "\n",
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/check-runs?per_page=100"],
+        stdout: '{"check_runs":[{"status":"COMPLETED","conclusion":"SUCCESS","name":"ci-old-head"}]}\n',
+      },
+      {
+        assertArgs: ["api", "repos/owner/repo/commits/newsha/status?per_page=100"],
+        stdout: '{"statuses":[]}\n',
+      },
+    ]);
+
+    const result = await runNode(["--repo", "owner/repo", "--pr", "17"], { env });
+
+    assert.equal(result.code, 0, `stderr: ${result.stderr}`);
+
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.snapshot.ciStatus, "success");
+    assert.equal(output.snapshot.copilotReviewOnCurrentHead, false);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.autoRerequestEligible, true);
+    assert.equal(output.terminal, false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test.skip("detect-copilot-loop-state does not treat malformed zero-suite payloads as explicit empty arrays", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-malformed-zero-suite-"));
 
