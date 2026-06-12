@@ -143,13 +143,14 @@ function validateRepo(repo) {
 function resolveSettings(cwd) {
   // Try bare .devloops and extension variants (.yaml, .yml, .json)
   // to match the config loader's consumer override detection.
+  // .json uses strict JSON.parse; all others use the YAML parser.
   const basePath = path.join(cwd, ".devloops");
   const extensions = ["", ".yaml", ".yml", ".json"];
   for (const ext of extensions) {
     try {
       const settingsPath = basePath + ext;
       const raw = readFileSync(settingsPath, "utf-8");
-      const settings = parseYaml(raw);
+      const settings = ext === ".json" ? JSON.parse(raw) : parseYaml(raw);
       const queue = settings?.queue;
       if (queue) {
         if (typeof queue.projectNumber === "number" && Number.isInteger(queue.projectNumber) && queue.projectNumber > 0) {

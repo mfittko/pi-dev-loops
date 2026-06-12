@@ -610,6 +610,37 @@ describe("ensure-queue-board", () => {
       }
     });
 
+    it("reads .devloops.json extension variant", () => {
+      const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
+      try {
+        writeFileSync(path.join(tmp, ".devloops.json"), JSON.stringify({
+          version: 1,
+          queue: {
+            projectNumber: 99,
+          },
+        }));
+        const result = resolveSettings(tmp);
+        assert.deepEqual(result, { project: 99 });
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it("reads .devloops.yml extension variant", () => {
+      const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
+      try {
+        writeFileSync(path.join(tmp, ".devloops.yml"), [
+          "version: 1",
+          "queue:",
+          "  boardTitle: From Yml",
+        ].join("\n"));
+        const result = resolveSettings(tmp);
+        assert.deepEqual(result, { title: "From Yml" });
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it("returns title from settings when projectNumber is absent", () => {
       const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
       try {
