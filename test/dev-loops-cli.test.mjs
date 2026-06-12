@@ -130,6 +130,39 @@ test("CLI help leads with dev-loop as the primary workflow entry", async () => {
   assert.equal(helpStderr.read(), "");
 });
 
+
+test("CLI help exposes project queue wrapper surface", async () => {
+  const helpStdout = createBufferStream();
+  const helpStderr = createBufferStream();
+  const categoryStdout = createBufferStream();
+  const categoryStderr = createBufferStream();
+
+  const helpExitCode = await runCli({
+    argv: ["help"],
+    runtime: createRuntime(),
+    stdout: helpStdout.stream,
+    stderr: helpStderr.stream,
+  });
+  const categoryExitCode = await runCli({
+    argv: ["project", "--help"],
+    runtime: createRuntime(),
+    stdout: categoryStdout.stream,
+    stderr: categoryStderr.stream,
+  });
+
+  assert.equal(helpExitCode, 0);
+  assert.equal(categoryExitCode, 0);
+  assert.match(helpStdout.read(), /dev-loops project <sub>/);
+  assert.match(helpStdout.read(), /GitHub Projects queue helpers/);
+  const categoryHelp = categoryStdout.read();
+  assert.match(categoryHelp, /dev-loops project <subcommand>/);
+  assert.match(categoryHelp, /list\s+List queue board items/);
+  assert.match(categoryHelp, /ensure\s+Create\/repair queue board bootstrap surface/);
+  assert.equal(helpStderr.read(), "");
+  assert.equal(categoryStderr.read(), "");
+});
+
+
 test("CLI status next steps lead with dev-loop when all checks pass", async () => {
   const statusStdout = createBufferStream();
   const statusStderr = createBufferStream();
@@ -254,6 +287,63 @@ test("CLI rejects removed update command", async () => {
     assert.equal(stdout.read(), "");
     assert.match(stderr.read(), /Unrecognized command: update\./);
     assert.match(stderr.read(), /dev-loops help/);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+
+test("project wrappers pass through helper stdout and exit codes", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-project-cli-"));
+  const binDir = path.join(tempRoot, "bin");
+  await mkdir(binDir, { recursive: true });
+  const ghPath = path.join(binDir, process.platform === "win32" ? "gh.cmd" : "gh");
+  const ghScript = `#!/usr/bin/env node
+const queryArg = process.argv.find((arg) => arg.startsWith("query=")) ?? "";
+const query = queryArg.slice("query=".length);
+function write(payload) {
+  process.stdout.write(JSON.stringify(payload));
+}
+if (query.includes("user(login:$login) { id }")) {
+  write({ data: { user: { id: "U_1" } } });
+} else if (query.includes("projectsV2(first:50, after:$after)")) {
+  write({ data: { user: { projectsV2: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: "PVT_proj1", number: 1, title: "Dev Loop Queue", url: "https://github.com/users/mfittko/projects/1" }] } } } });
+} else if (query.includes("fields(first:50, after:$after)")) {
+  write({ data: { node: { fields: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: "PVTSSF_1", name: "Status", options: [{ id: "opt1", name: "Backlog" }, { id: "opt2", name: "Next Up" }] }] } } } });
+} else if (query.includes("items(first:100, after:$after)")) {
+  write({ data: { node: { items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: "PVTI_1", fieldValues: { nodes: [{ field: { id: "PVTSSF_1", name: "Status" }, name: "Next Up" }] }, content: { number: 748, title: "Public CLI surface", url: "https://github.com/mfittko/pi-dev-loops/issues/748", id: "I_748" } }] } } } });
+} else {
+  process.stderr.write(JSON.stringify({ ok: false, error: "Unhandled query: " + query }));
+  process.exit(1);
+}
+`;
+  await writeFile(ghPath, ghScript);
+  await chmod(ghPath, 0o755);
+
+  try {
+    const env = { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}` };
+    const success = spawnSync("node", ["./cli/index.mjs", "project", "list", "--repo", "mfittko/pi-dev-loops", "--project", "1", "--column", "Next Up"], {
+      cwd: repoRoot,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(success.status, 0, success.stderr);
+    assert.equal(success.stderr, "");
+    const payload = JSON.parse(success.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.items.length, 1);
+    assert.equal(payload.items[0].issueNumber, 748);
+    assert.equal(payload.items[0].status, "Next Up");
+
+    const failure = spawnSync("node", ["./cli/index.mjs", "project", "list"], {
+      cwd: repoRoot,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(failure.status, 1);
+    assert.equal(failure.stdout, "");
+    assert.match(failure.stderr, /--repo is required/);
+    assert.match(failure.stderr, /"code":"INVALID_REPO"/);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

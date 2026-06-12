@@ -2,7 +2,7 @@
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { runChild as _runChild } from "../_cli-primitives.mjs";
 
-const USAGE = `Usage: node scripts/projects/add-queue-item.mjs --repo <owner/name> --project <number|id> --item <number>
+const USAGE = `Usage: dev-loops project add --repo <owner/name> --project <number|id> --item <number>
 
 Add an existing issue or PR to a GitHub Projects V2 board.
 

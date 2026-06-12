@@ -2,7 +2,7 @@
 import { formatCliError, isDirectCliRun, parseJsonText } from "../_core-helpers.mjs";
 import { runChild as _runChild } from "../_cli-primitives.mjs";
 
-const USAGE = `Usage: node scripts/projects/list-queue-items.mjs --repo <owner/name> --project <number|id> [--column <name>] [--limit <n>]
+const USAGE = `Usage: dev-loops project list --repo <owner/name> --project <number|id> [--column <name>] [--limit <n>]
 
 List GitHub Projects V2 items filtered by Status column, ordered by position
 ascending. Returns machine-readable JSON.

@@ -46,8 +46,14 @@ const SUBCOMMAND_ROUTES = {
     "ready-for-review": "scripts/github/ready-for-review.mjs",
     "reconcile-draft":  "scripts/github/reconcile-draft-gate.mjs",
   },
+  project: {
+    list:    "scripts/projects/list-queue-items.mjs",
+    add:     "scripts/projects/add-queue-item.mjs",
+    move:    "scripts/projects/move-queue-item.mjs",
+    reorder: "scripts/projects/reorder-queue-item.mjs",
+    ensure:  "scripts/projects/ensure-queue-board.mjs",
+  },
   queue: {
-    
     run:            "scripts/loop/run-queue.mjs",
   },
   inspect: {
@@ -60,6 +66,55 @@ const SUBCOMMAND_ROUTES = {
 };
 
 const TOP_LEVEL_COMMANDS = new Set(["help", "status", "doctor", "gates", "hide"]);
+
+const SUBCOMMAND_DESCRIPTIONS = {
+  gate: {
+    "upsert-verdict": "Post/update gate review comment",
+    "detect-evidence": "Check merge preconditions",
+    "write-findings-log": "Write disposition ledger",
+    "request-copilot": "Request Copilot review",
+    "probe-copilot": "Poll for Copilot review activity",
+    "capture-threads": "Capture review threads",
+    "reply-resolve": "Reply and resolve review threads",
+  },
+  loop: {
+    startup: "Resolve dev-loop startup bundle",
+    "build-envelope": "Build handoff envelope from startup output",
+    outer: "Run outer-loop detection",
+    "watch-cycle": "Run Copilot wait cycle",
+    handoff: "Copilot PR handoff",
+    "watch-initial": "Watch initial Copilot PR",
+    "loop-state": "Detect Copilot loop state",
+    "reviewer-state": "Detect reviewer loop state",
+    "gate-coordination": "Detect PR gate coordination state",
+    "linked-issue-pr": "Detect linked issue ↔ PR",
+    "issue-refinement": "Detect issue refinement artifact",
+    info: "Show read-only issue/PR state summary",
+    "debt-remediate": "File debt remediation issues",
+  },
+  pr: {
+    "create-draft": "Create draft PR",
+    "ready-for-review": "Mark PR ready for review",
+    "reconcile-draft": "Reconcile non-draft PR",
+  },
+  project: {
+    list: "List queue board items",
+    add: "Add issue/PR to queue board",
+    move: "Move queue item between Status columns",
+    reorder: "Reorder queue board items",
+    ensure: "Create/repair queue board bootstrap surface",
+  },
+  queue: {
+    run: "Run queue driver",
+  },
+  inspect: {
+    run: "Inspect run state",
+    viewer: "Start inspection viewer",
+  },
+  refine: {
+    verify: "Verify epic tree refinement integrity",
+  },
+};
 
 const CLI_SETUP_GUIDANCE = {
   "gh-installed": "Install GitHub CLI to enable remote GitHub/Copilot workflows.",
@@ -102,7 +157,16 @@ async function commandExists(
 function buildCategoryHelp(category) {
   const routes = SUBCOMMAND_ROUTES[category];
   if (!routes) return [`Unknown category: ${category}`];
-  return [`dev-loops ${category} <subcommand> [...]`, "", "Available subcommands:", ...Object.keys(routes).map((s) => `  ${s}`)];
+  const descriptions = SUBCOMMAND_DESCRIPTIONS[category] ?? {};
+  return [
+    `dev-loops ${category} <subcommand> [...]`,
+    "",
+    "Available subcommands:",
+    ...Object.keys(routes).map((s) => {
+      const description = descriptions[s];
+      return description ? `  ${s.padEnd(16)} ${description}` : `  ${s}`;
+    }),
+  ];
 }
 
 function buildCliHelpLines() {
@@ -144,6 +208,12 @@ function buildCliHelpLines() {
     "    create-draft      Create draft PR",
     "    ready-for-review  Mark PR ready for review",
     "    reconcile-draft   Reconcile non-draft PR",
+    "- dev-loops project <sub> [...]    GitHub Projects queue helpers",
+    "    list              List queue board items",
+    "    add               Add issue/PR to queue board",
+    "    move              Move queue item between Status columns",
+    "    reorder           Reorder queue board items",
+    "    ensure            Create/repair queue board bootstrap surface",
     "- dev-loops inspect <sub> [...]    Inspection (Pi extension only)",
     "    run               Inspect run state",
     "    viewer            Start inspection viewer",
