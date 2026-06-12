@@ -240,7 +240,7 @@ With `--repair-rename`, the wrapper:
 
 ### Conflicts
 
-When multiple existing columns map to the same standard column, the wrapper reports an irreconcilable conflict in `repairs.conflicts` and performs no rename. The operator must resolve the ambiguity manually.
+When multiple existing columns map to the same standard column, the wrapper reports an irreconcilable conflict in `repairs.conflicts` and performs no mutation. The operator must resolve the ambiguity manually.
 
 ## Configuration shape
 

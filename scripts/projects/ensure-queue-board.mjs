@@ -285,6 +285,8 @@ const GET_PROJECT_FIELDS = [
   "            options {",
   "              id",
   "              name",
+  "              color",
+  "              description",
   "            }",
   "          }",
   "        }",
@@ -592,6 +594,8 @@ const STANDARD_COLUMNS = [
 
 const STANDARD_COLUMN_NAMES = STANDARD_COLUMNS.map((c) => c.name);
 
+const EMPTY_REPAIRS = Object.freeze({ additive: [], renameCandidates: [], renamesApplied: [], conflicts: [] });
+
 /**
  * Auto-repair a Status field that is missing standard columns.
  *
@@ -680,42 +684,9 @@ async function main(args, { env = process.env, runChild } = {}) {
       (f) => f.name === "Status" && f.options,
     );
 
-    const existingColumns = statusField?.options?.map((o) => o.name) ?? [];
-    const missingStandardColumns = STANDARD_COLUMN_NAMES.filter((c) => !existingColumns.includes(c));
-
-    if (statusField && missingStandardColumns.length === 0 && !args.repairRename) {
-      // All standard columns already present and no rename request — check repo link.
-      let linkedRepo = null;
-      if (linkRepo) {
-        const repoId = await resolveRepoId(linkRepo, env, child);
-        await ghGraphql(LINK_PROJECT_TO_REPO, {
-          projectId: project.id,
-          repositoryId: repoId,
-        }, env, child);
-        linkedRepo = linkRepo;
-      }
-      return {
-        ok: true,
-        project: {
-          id: project.id,
-          number: project.number,
-          title: project.title,
-          url: project.url,
-          statusFieldId: statusField.id,
-          ...(linkedRepo ? { linkedRepo } : {}),
-        },
-        repairs: {
-          additive: [],
-          renameCandidates: [],
-          renamesApplied: [],
-          conflicts: [],
-        },
-      };
-    }
-
     if (statusField) {
-      // Repair columns: additive by default, with optional --repair-rename reconciliation.
-      const { options: _repairedOptions, repairs } = await classifyAndRepairColumns(
+      // Always classify drift for the repairs object, then mutate only when authorized.
+      const { repairs } = await classifyAndRepairColumns(
         statusField.id,
         statusField.options,
         args.repairRename ?? false,
@@ -774,6 +745,7 @@ async function main(args, { env = process.env, runChild } = {}) {
         statusFieldId: newField.id,
         ...(linkedRepo ? { linkedRepo } : {}),
       },
+      repairs: EMPTY_REPAIRS,
     };
   }
 
@@ -817,6 +789,7 @@ async function main(args, { env = process.env, runChild } = {}) {
       statusFieldId: newField.id,
       ...(linkedRepo ? { linkedRepo } : {}),
     },
+    repairs: EMPTY_REPAIRS,
   };
 }
 

@@ -101,7 +101,7 @@ Rename equivalent columns after review:
 dev-loops project ensure --repo mfittko/pi-dev-loops --repair-rename
 ```
 
-This renames recognized equivalents (for example `Ready` -> `Next Up`) and adds any still-missing standard columns. It never removes existing columns. Irreconcilable conflicts (for example both `Ready` and `Next` mapping to `Next Up`) are reported in `repairs.conflicts` and no rename is performed.
+This renames recognized equivalents (for example `Ready` -> `Next Up`) and adds any still-missing standard columns. It never removes existing columns. Irreconcilable conflicts (for example both `Ready` and `Next` mapping to `Next Up`) are reported in `repairs.conflicts` and no mutation is performed (no renames and no additive column creation).
 
 ### Fail-closed behavior
 

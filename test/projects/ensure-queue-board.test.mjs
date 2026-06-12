@@ -802,3 +802,62 @@ describe("rename/reconcile drift", () => {
     assert.deepEqual(result.repairs.additive, ["Backlog", "Done"]);
   });
 });
+
+describe("rename conflict when standard already exists", () => {
+  it("reports conflict when equivalent column exists alongside the canonical standard", async () => {
+    const duplicateStandardField = {
+      id: "PVTSSF_dup",
+      name: "Status",
+      options: [
+        { id: "opt1", name: "Backlog" },
+        { id: "opt2", name: "Next Up" },
+        { id: "opt3", name: "Ready" },
+        { id: "opt4", name: "In Progress" },
+        { id: "opt5", name: "Done" },
+      ],
+    };
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+      { payload: getFieldsResponse([duplicateStandardField]) },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops", repairRename: true },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.repairs.conflicts.length, 1);
+    assert.equal(result.repairs.conflicts[0].option, "Ready");
+    assert.deepEqual(result.repairs.renamesApplied, []);
+    assert.deepEqual(result.repairs.additive, []);
+  });
+
+  it("returns repairs on newly created project", async () => {
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([]) },
+      {
+        payload: createProjectResponse({
+          id: "PVT_new",
+          number: 2,
+          title: "Dev Loop Queue",
+          url: "https://github.com/users/mfittko/projects/2",
+        }),
+      },
+      {
+        payload: createFieldResponse({ id: "PVTSSF_new", name: "Status" }),
+      },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops" },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.repairs, {
+      additive: [],
+      renameCandidates: [],
+      renamesApplied: [],
+      conflicts: [],
+    });
+  });
+});
