@@ -142,7 +142,7 @@ function validateRepo(repo) {
 
 function resolveSettings(cwd) {
   try {
-    const settingsPath = path.join(cwd, ".pi", "dev-loop", "settings.yaml");
+    const settingsPath = path.join(cwd, ".devloops");
     const raw = readFileSync(settingsPath, "utf-8");
     const settings = parseYaml(raw);
     const queue = settings?.queue;

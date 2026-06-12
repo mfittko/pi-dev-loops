@@ -580,11 +580,10 @@ describe("ensure-queue-board", () => {
 
 
   describe("resolveSettings integration", () => {
-    it("returns project number from settings.yaml", () => {
+    it("returns project number from .devloops", () => {
       const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
       try {
-        mkdirSync(path.join(tmp, ".pi", "dev-loop"), { recursive: true });
-        writeFileSync(path.join(tmp, ".pi", "dev-loop", "settings.yaml"), [
+        writeFileSync(path.join(tmp, ".devloops"), [
           "version: 1",
           "queue:",
           "  projectNumber: 42",
@@ -599,8 +598,7 @@ describe("ensure-queue-board", () => {
     it("returns title from settings when projectNumber is absent", () => {
       const tmp = mkdtempSync(path.join(import.meta.dirname || "/tmp", "settings-test-"));
       try {
-        mkdirSync(path.join(tmp, ".pi", "dev-loop"), { recursive: true });
-        writeFileSync(path.join(tmp, ".pi", "dev-loop", "settings.yaml"), [
+        writeFileSync(path.join(tmp, ".devloops"), [
           "version: 1",
           "queue:",
           "  boardTitle: My Board",
