@@ -229,6 +229,12 @@ function isAutoRerequestEligible(snapshot, state) {
  */
 const VALID_SIGNAL_LEVELS = new Set(["high", "mid", "low"]);
 
+function hasExplicitCurrentHeadReviewSignal(raw) {
+  return Boolean(raw)
+    && typeof raw === "object"
+    && Object.prototype.hasOwnProperty.call(raw, "copilotReviewOnCurrentHead");
+}
+
 export function normalizeSnapshot(raw) {
   if (!raw || typeof raw !== "object") {
     throw new Error("Snapshot must be a non-null object");
@@ -347,7 +353,10 @@ export function interpretLoopState(snapshot, refinementConfig) {
   // count has been exhausted, stop re-requests before entering fix/reply-resolve routing.
   // Gating here (before unresolved-thread checks) ensures round cap takes priority over
   // the normal fix loop, including unresolved threads, pending CI, and CI failures.
-  // Clean PRs are eligible for pre_approval_gate fallback; everything else is a hard stop.
+  // Clean PRs are usually eligible for pre_approval_gate fallback; the only automatic
+  // exception is when the head has advanced since the last submitted Copilot review,
+  // all prior feedback is resolved, and CI is green/credibly green again. In that case
+  // the state re-opens to READY_TO_REREQUEST_REVIEW instead of terminating as clean fallback.
   // Does NOT interrupt an in-flight review request (requested/already-requested).
   const maxRounds = refinementConfig?.maxCopilotRounds; console.error("CORE max", maxRounds, "round", s.copilotReviewRoundCount, "state", state);
   const reviewInFlight = s.copilotReviewRequestStatus === "requested"
@@ -359,7 +368,13 @@ export function interpretLoopState(snapshot, refinementConfig) {
       && state !== STATE.PR_DRAFT && state !== STATE.REVIEW_REQUEST_UNAVAILABLE
       && state !== STATE.BLOCKED_NEEDS_USER_DECISION) {
     const ciClean = s.ciStatus === "success" || s.ciStatus === "crediblyGreen";
-    if (s.unresolvedThreadCount === 0 && ciClean) {
+    const cleanThreads = s.unresolvedThreadCount === 0;
+    const headAdvancedSinceLastSubmittedCopilotReview = s.copilotReviewPresent
+      && hasExplicitCurrentHeadReviewSignal(snapshot)
+      && !s.copilotReviewOnCurrentHead;
+    if (cleanThreads && ciClean && headAdvancedSinceLastSubmittedCopilotReview) {
+      state = STATE.READY_TO_REREQUEST_REVIEW;
+    } else if (cleanThreads && ciClean) {
       state = STATE.ROUND_CAP_CLEAN_FALLBACK;
     } else {
       state = STATE.ROUND_CAP_REACHED;

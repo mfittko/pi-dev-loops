@@ -118,8 +118,66 @@ test("detect-copilot-loop-state --input routes already-fixed threads to already_
   }
 });
 
-test("detect-copilot-loop-state --input routes clean exhausted rounds to round_cap_clean_fallback", async () => {
+test("detect-copilot-loop-state --input re-opens clean exhausted rounds to ready_to_rerequest_review when head changed", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-round-cap-clean-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: true,
+      copilotReviewOnCurrentHead: false,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      copilotReviewRoundCount: 5,
+      ciStatus: "success",
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "ready_to_rerequest_review");
+    assert.equal(output.autoRerequestEligible, true);
+    assert.equal(output.terminal, false);
+    assert.match(output.nextAction, /Re-request Copilot review/i);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state --input fails closed to round_cap_clean_fallback when current-head review signal is omitted", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-round-cap-clean-missing-head-signal-"));
+
+  try {
+    const snapshotPath = path.join(tempDir, "snapshot.json");
+    await writeJson(snapshotPath, {
+      prExists: true,
+      prNumber: 17,
+      copilotReviewRequestStatus: "none",
+      copilotReviewPresent: true,
+      unresolvedThreadCount: 0,
+      actionableThreadCount: 0,
+      copilotReviewRoundCount: 5,
+      ciStatus: "success",
+    });
+
+    const result = await runNode(["--input", snapshotPath]);
+
+    assert.equal(result.code, 0);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.state, "round_cap_clean_fallback");
+    assert.equal(output.autoRerequestEligible, false);
+    assert.equal(output.terminal, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("detect-copilot-loop-state --input keeps clean exhausted rounds on current head at round_cap_clean_fallback", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "pi-dev-loops-detect-round-cap-clean-current-head-"));
 
   try {
     const snapshotPath = path.join(tempDir, "snapshot.json");
