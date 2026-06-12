@@ -50,6 +50,8 @@ gates:
     required: true
     # When true, draft gate waits for green CI before the gate may run.
     requireCi: true
+    mandatoryAngles:
+      - pr-description
   preApproval:
     # Pre-approval gate: runs before declaring merge-ready.
     # All angle families enabled by default.
@@ -69,6 +71,8 @@ gates:
       - pr-checklist-matrix
     excludeAngles: []
     required: true
+    mandatoryAngles:
+      - pr-checklist-matrix
 
 # Autonomy: which gates require operator confirmation (stop points)
 autonomy:
@@ -363,7 +367,7 @@ personas:
       The PR body is the implementation contract — it must have:
       - A Summary section explaining what changed and why
       - A Scope and context section defining the boundary of the change
-      - A File-by-file changes section listing every touched file and its modification
+      - A File-by-file changes section listing every touched file and what changed in it
       - An Acceptance criteria section with the linked issue acceptance criteria
       - A Definition of done section
       - A Non-goals section

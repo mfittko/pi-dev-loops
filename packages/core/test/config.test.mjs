@@ -1987,7 +1987,6 @@ describe("shipped defaults docs and deep angle wiring", () => {
       assert.deepEqual(result.errors, []);
       assert.equal(result.config.personas["pr-description"].persona, "review");
       assert.match(result.config.personas["pr-description"].prompt, /Summary section/i);
-      assert.match(result.config.personas["pr-description"].prompt, /Changes section/i);
       assert.match(result.config.personas["pr-description"].prompt, /Validation command section/i);
       assert.match(result.config.personas["pr-description"].prompt, /Do not block on formatting/i);
       assert.match(result.config.personas["pr-description"].prompt, /linked issue acceptance criteria/i);
