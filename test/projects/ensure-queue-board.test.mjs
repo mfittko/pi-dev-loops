@@ -670,3 +670,194 @@ describe("ensure-queue-board", () => {
     });
   });
 });
+
+describe("rename/reconcile drift", () => {
+  const RENAMED_FIELD = {
+    id: "PVTSSF_drift",
+    name: "Status",
+    options: [
+      { id: "opt1", name: "Backlog" },
+      { id: "opt2", name: "Ready" },
+      { id: "opt3", name: "In Progress" },
+      { id: "opt4", name: "Done" },
+    ],
+  };
+
+  const NO_DRIFT_RESPONSES = () => [
+    { payload: userPayload() },
+    { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+    { payload: getFieldsResponse([STATUS_FIELD]) },
+  ];
+
+  it("reports empty repairs when all standard columns are present", async () => {
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops" },
+      { env: {}, runChild: mockRunChild(NO_DRIFT_RESPONSES()) },
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.repairs, {
+      additive: [],
+      renameCandidates: [],
+      renamesApplied: [],
+      conflicts: [],
+    });
+  });
+
+  it("detects rename candidates without mutating when flag is absent", async () => {
+    // No update response is provided; if the implementation mutates the field,
+    // mockRunChild will throw on the unexpected call.
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+      { payload: getFieldsResponse([RENAMED_FIELD]) },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops" },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.repairs.renamesApplied, []);
+    assert.deepEqual(result.repairs.renameCandidates, [{ from: "Ready", to: "Next Up" }]);
+    assert.deepEqual(result.repairs.additive, []); // avoids duplicate Next Up
+    assert.deepEqual(result.repairs.conflicts, []);
+  });
+
+  it("renames equivalent columns when --repair-rename is authorized", async () => {
+    const expectedOptions = [
+      { id: "opt1", name: "Backlog" },
+      { id: "opt2", name: "Next Up", color: "BLUE" },
+      { id: "opt3", name: "In Progress" },
+      { id: "opt4", name: "Done" },
+    ];
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+      { payload: getFieldsResponse([RENAMED_FIELD]) },
+      { payload: updateFieldResponse(expectedOptions) },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops", repairRename: true },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.repairs.renamesApplied, [{ from: "Ready", to: "Next Up" }]);
+    assert.deepEqual(result.repairs.renameCandidates, []);
+    assert.deepEqual(result.repairs.additive, []);
+  });
+
+  it("reports conflicts when multiple columns map to the same standard", async () => {
+    const conflictField = {
+      id: "PVTSSF_conflict",
+      name: "Status",
+      options: [
+        { id: "opt1", name: "Backlog" },
+        { id: "opt2", name: "Ready" },
+        { id: "opt3", name: "Next" },
+        { id: "opt4", name: "In Progress" },
+        { id: "opt5", name: "Done" },
+      ],
+    };
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+      { payload: getFieldsResponse([conflictField]) },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops", repairRename: true },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.repairs.conflicts.length, 1);
+    assert.ok(result.repairs.conflicts[0].reason.includes("Next Up"));
+    assert.deepEqual(result.repairs.renamesApplied, []);
+  });
+
+  it("adds missing standard columns and detects drift in same repair pass", async () => {
+    const mixedField = {
+      id: "PVTSSF_mixed",
+      name: "Status",
+      options: [
+        { id: "opt1", name: "Ready" },
+        { id: "opt2", name: "In Progress" },
+      ],
+    };
+    const expectedOptions = [
+      { id: "opt1", name: "Next Up", color: "BLUE" },
+      { id: "opt2", name: "In Progress" },
+      { id: "new1", name: "Backlog", color: "GRAY" },
+      { id: "new2", name: "Done", color: "GREEN" },
+    ];
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+      { payload: getFieldsResponse([mixedField]) },
+      { payload: updateFieldResponse(expectedOptions) },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops", repairRename: true },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.repairs.renamesApplied, [{ from: "Ready", to: "Next Up" }]);
+    assert.deepEqual(result.repairs.additive, ["Backlog", "Done"]);
+  });
+});
+
+describe("rename conflict when standard already exists", () => {
+  it("reports conflict when equivalent column exists alongside the canonical standard", async () => {
+    const duplicateStandardField = {
+      id: "PVTSSF_dup",
+      name: "Status",
+      options: [
+        { id: "opt1", name: "Backlog" },
+        { id: "opt2", name: "Next Up" },
+        { id: "opt3", name: "Ready" },
+        { id: "opt4", name: "In Progress" },
+        { id: "opt5", name: "Done" },
+      ],
+    };
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([EXISTING_PROJECT]) },
+      { payload: getFieldsResponse([duplicateStandardField]) },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops", repairRename: true },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.repairs.conflicts.length, 1);
+    assert.equal(result.repairs.conflicts[0].option, "Ready");
+    assert.deepEqual(result.repairs.renamesApplied, []);
+    assert.deepEqual(result.repairs.additive, []);
+  });
+
+  it("returns repairs on newly created project", async () => {
+    const responses = [
+      { payload: userPayload() },
+      { payload: listUserProjectsResponse([]) },
+      {
+        payload: createProjectResponse({
+          id: "PVT_new",
+          number: 2,
+          title: "Dev Loop Queue",
+          url: "https://github.com/users/mfittko/projects/2",
+        }),
+      },
+      {
+        payload: createFieldResponse({ id: "PVTSSF_new", name: "Status" }),
+      },
+    ];
+    const result = await main(
+      { repo: "mfittko/pi-dev-loops" },
+      { env: {}, runChild: mockRunChild(responses) },
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.repairs, {
+      additive: [],
+      renameCandidates: [],
+      renamesApplied: [],
+      conflicts: [],
+    });
+  });
+});

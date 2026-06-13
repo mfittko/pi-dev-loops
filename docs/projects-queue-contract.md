@@ -216,6 +216,32 @@ Auto-repair covers:
 Auto-repair does NOT remove or rename existing columns. Column removal/reordering remains
 a manual operation via the GitHub Projects UI.
 
+
+## Rename-aware column repair
+
+The bootstrap wrapper recognizes a bounded set of semantically equivalent Status column names and can reconcile them to the canonical four-column contract. For example, `Ready` is treated as equivalent to `Next Up`, and `Doing` as equivalent to `In Progress`.
+
+### Default behavior
+
+Without an explicit repair flag, the wrapper:
+
+- Reports detected rename candidates in `repairs.renameCandidates`.
+- Does **not** rename existing columns.
+- Does **not** add a standard column that would duplicate an equivalent column already on the board.
+- Still adds any standard columns that are missing and not covered by an equivalent.
+
+### Authorized rename behavior
+
+With `--repair-rename`, the wrapper:
+
+- Renames recognized equivalent columns to the canonical standard names.
+- Adds any remaining missing standard columns.
+- Leaves unrecognized columns and item assignments untouched.
+
+### Conflicts
+
+When multiple existing columns map to the same standard column, the wrapper reports an irreconcilable conflict in `repairs.conflicts` and performs no mutation. The operator must resolve the ambiguity manually.
+
 ## Configuration shape
 
 Queue board configuration lives under `.devloops` at repo root. All keys are optional;
