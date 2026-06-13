@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
+import { runChild as coreRunChild } from "../cli/primitives.mjs";
 import { main as moveQueueItemMain } from "../../../../scripts/projects/move-queue-item.mjs";
 
 const DEFAULT_NON_SUCCESS_COLUMN = "Backlog";
@@ -10,20 +11,31 @@ const DEFAULT_NON_SUCCESS_COLUMN = "Backlog";
 function readDevloopsSettings(repoRoot) {
   const base = path.join(repoRoot, ".devloops");
   const extensions = ["", ".yaml", ".yml", ".json"];
+  let foundError = null;
   for (const ext of extensions) {
     try {
       const raw = readFileSync(base + ext, "utf8");
       const settings = ext === ".json" ? JSON.parse(raw) : parseYaml(raw);
-      return settings?.queue ?? null;
-    } catch {
-      // try next extension
+      return { settings: settings?.queue ?? null };
+    } catch (err) {
+      if (err?.code === "ENOENT") {
+        // try next extension
+      } else if (!foundError) {
+        foundError = err;
+      }
     }
   }
-  return null;
+  if (foundError) {
+    return { error: foundError.message };
+  }
+  return { settings: null };
 }
 
 export function loadBoardConfig(repoRoot) {
-  const queue = readDevloopsSettings(repoRoot);
+  const { settings: queue, error } = readDevloopsSettings(repoRoot);
+  if (error) {
+    return { enabled: false, reason: `config read/parse error: ${error}` };
+  }
   if (!queue) return { enabled: false };
   if (typeof queue.projectNumber === "number" && queue.projectNumber > 0) {
     return { enabled: true, projectNumber: queue.projectNumber };
@@ -71,8 +83,7 @@ const LIST_ORG_PROJECTS = [
 ].join("\n");
 
 async function ghGraphql(query, vars, env, runChild) {
-  const { runChild: defaultRunChild } = await import("../../../../scripts/_cli-primitives.mjs");
-  const child = runChild ?? defaultRunChild;
+  const child = runChild ?? coreRunChild;
   const fieldArgs = [];
   for (const [key, value] of Object.entries(vars)) {
     fieldArgs.push("--field", `${key}=${value}`);
@@ -86,8 +97,7 @@ async function ghGraphql(query, vars, env, runChild) {
     const detail = result.stderr.trim() || `exit code ${result.code}`;
     throw Object.assign(new Error(`gh api graphql failed: ${detail}`), { code: "GH_API_ERROR" });
   }
-  const { parseJsonText } = await import("../../../../scripts/_core-helpers.mjs");
-  const payload = parseJsonText(result.stdout);
+  const payload = JSON.parse(result.stdout);
   if (payload.errors && payload.errors.length > 0) {
     throw Object.assign(
       new Error(`GraphQL errors: ${payload.errors.map((e) => e.message).join("; ")}`),
@@ -138,9 +148,19 @@ async function listAllProjects(login, kind, env, runChild) {
   return projects;
 }
 
+const projectNumberCache = new Map();
+
+function projectCacheKey(repo, boardTitle) {
+  return `${repo}::${boardTitle}`;
+}
+
 async function resolveProjectNumber(repo, config, env, runChild) {
   if (config.projectNumber) return config.projectNumber;
   if (config.boardTitle) {
+    const key = projectCacheKey(repo, config.boardTitle);
+    const cached = projectNumberCache.get(key);
+    if (cached) return cached;
+
     const [owner] = repo.split("/");
     const { kind } = await resolveOwner(owner, env, runChild);
     const projects = await listAllProjects(owner, kind, env, runChild);
@@ -151,6 +171,7 @@ async function resolveProjectNumber(repo, config, env, runChild) {
         { code: "BOARD_NOT_FOUND" },
       );
     }
+    projectNumberCache.set(key, match.number);
     return match.number;
   }
   return null;
@@ -168,7 +189,7 @@ export async function syncBoardStatus(
 ) {
   const config = loadBoardConfig(repoRoot);
   if (!config.enabled) {
-    return { ok: true, skipped: true, reason: "board not configured" };
+    return { ok: true, skipped: true, reason: config.reason ?? "board not configured" };
   }
 
   let projectNumber;
@@ -194,7 +215,7 @@ export async function syncBoardStatus(
 }
 
 export function nonSuccessBoardColumn(repoRoot, fallback = DEFAULT_NON_SUCCESS_COLUMN) {
-  const queue = readDevloopsSettings(repoRoot);
+  const { settings: queue } = readDevloopsSettings(repoRoot);
   const configured = queue?.nonSuccessStatus;
   return typeof configured === "string" && configured.trim().length > 0
     ? configured.trim()

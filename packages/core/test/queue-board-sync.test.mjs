@@ -128,3 +128,15 @@ test("nonSuccessBoardColumn uses configured value", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("loadBoardConfig surfaces config read errors", async () => {
+  const dir = await makeRepo(null);
+  try {
+    await writeFile(path.join(dir, ".devloops"), "queue: [invalid yaml");
+    const result = loadBoardConfig(dir);
+    assert.equal(result.enabled, false);
+    assert.match(result.reason, /config read\/parse error/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
