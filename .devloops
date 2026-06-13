@@ -28,6 +28,8 @@ gates:
       - pr-description
       - pr-comments
     requireCi: true
+    mandatoryAngles:
+      - pr-description
     blockCleanOnFindingSeverities:
       - must-fix
       - worth-fixing-now
@@ -45,6 +47,10 @@ gates:
       - isp
       - dip
       - renderer-security
+      - pr-checklist-matrix
+    mandatoryAngles:
+      - pr-checklist-matrix
+
     blockCleanOnFindingSeverities:
       - must-fix
       - worth-fixing-now
@@ -62,6 +68,7 @@ localImplementation:
     maxLines: 100
 
 queue:
+  boardTitle: "pi-dev-loops Queue"
   maxParallel: 3
   maxAutoFiledIssues: 10
   reDispatchMaxRetries: 1

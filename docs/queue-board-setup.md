@@ -82,6 +82,27 @@ Dev-loop queue wrappers will:
 
 Use `dev-loops project --help` to inspect the queue helper surface and per-subcommand `--help` for details.
 
+
+### Repairing drifted Status columns
+
+Real boards drift over time. An operator may rename `Next Up` to `Ready`, or `In Progress` to `Doing`. The bootstrap wrapper can detect these semantically equivalent columns and, with explicit authorization, reconcile them back to the standard names.
+
+Report drift without mutating (safe default):
+
+```sh
+dev-loops project ensure --repo mfittko/pi-dev-loops
+```
+
+When drift is detected, the JSON output includes `repairs.renameCandidates` but leaves existing columns untouched.
+
+Rename equivalent columns after review:
+
+```sh
+dev-loops project ensure --repo mfittko/pi-dev-loops --repair-rename
+```
+
+This renames recognized equivalents (for example `Ready` -> `Next Up`) and adds any still-missing standard columns. It never removes existing columns. Irreconcilable conflicts (for example both `Ready` and `Next` mapping to `Next Up`) are reported in `repairs.conflicts` and no mutation is performed (no renames and no additive column creation).
+
 ### Fail-closed behavior
 
 Queue helpers never silently assume board state is correct:

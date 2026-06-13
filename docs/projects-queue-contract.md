@@ -217,6 +217,31 @@ Auto-repair does NOT remove or rename existing columns. Column removal/reorderin
 a manual operation via the GitHub Projects UI.
 
 
+## Rename-aware column repair
+
+The bootstrap wrapper recognizes a bounded set of semantically equivalent Status column names and can reconcile them to the canonical four-column contract. For example, `Ready` is treated as equivalent to `Next Up`, and `Doing` as equivalent to `In Progress`.
+
+### Default behavior
+
+Without an explicit repair flag, the wrapper:
+
+- Reports detected rename candidates in `repairs.renameCandidates`.
+- Does **not** rename existing columns.
+- Does **not** add a standard column that would duplicate an equivalent column already on the board.
+- Still adds any standard columns that are missing and not covered by an equivalent.
+
+### Authorized rename behavior
+
+With `--repair-rename`, the wrapper:
+
+- Renames recognized equivalent columns to the canonical standard names.
+- Adds any remaining missing standard columns.
+- Leaves unrecognized columns and item assignments untouched.
+
+### Conflicts
+
+When multiple existing columns map to the same standard column, the wrapper reports an irreconcilable conflict in `repairs.conflicts` and performs no mutation. The operator must resolve the ambiguity manually.
+
 ## Lifecycle status transitions
 
 When a queue board is configured, the queue driver may optionally write bounded Status transitions back to the board. This is **opt-in** and **fail-open**: if the board is absent, misconfigured, or the GitHub API fails, the queue run continues and reports the sync problem in the result.
@@ -282,7 +307,6 @@ queue:
 ```
 
 With local queue entries `[#1, #2, #3]` and board `Next Up` order `[#3, #1]`, the driver dispatches `#3`, then `#1`, then `#2`.
-
 ## Configuration shape
 
 Queue board configuration lives under `.devloops` at repo root. All keys are optional;
