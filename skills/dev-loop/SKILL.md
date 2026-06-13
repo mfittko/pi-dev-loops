@@ -91,7 +91,7 @@ Do not preload route packs before the resolver selects the strategy.
 
 ## Fallback gate-comment poster
 
-When the `@pi-dev-loops/core` package is not installed in the consumer repo, the full `scripts/github/upsert-checkpoint-verdict.mjs` helper (referenced from the copilot-pr-followup skill procedure) is unavailable. To keep the PR audit trail intact in that mode, the dev-loop skill ships a small gh-only fallback poster at `scripts/dev-loop/scripts/post-gate-verdict-fallback.mjs` that renders the same visible comment format and fails closed if posting cannot succeed.
+When the `@pi-dev-loops/core` package is not installed in the consumer repo, the full `scripts/github/upsert-checkpoint-verdict.mjs` helper (referenced from the copilot-pr-followup skill procedure) is unavailable. To keep the PR audit trail intact in that mode, the dev-loop skill ships a small gh-only fallback poster at `scripts/post-gate-verdict-fallback.mjs` (relative to the dev-loop skill root) that renders the same visible comment format and fails closed if posting cannot succeed.
 
 Use the fallback poster only when the full helper cannot be reached:
 

@@ -250,6 +250,80 @@ test("parsePostGateVerdictFallbackCliArgs rejects malformed repo slug", () => {
     /--repo must be of the form owner\/name/,
   );
 });
+test("parsePostGateVerdictFallbackCliArgs rejects repo slug with whitespace segments", () => {
+  const parseError = buildParseError("Usage: ...");
+  assert.throws(
+    () =>
+      parsePostGateVerdictFallbackCliArgs(
+        [
+          "--repo",
+          "own er/repo",
+          "--pr",
+          "17",
+          "--head-sha",
+          "abc1234",
+          "--verdict",
+          "clean",
+          "--findings-summary",
+          "ok",
+          "--next-action",
+          "go",
+        ],
+        { parseError },
+      ),
+    /--repo must be of the form owner\/name/,
+  );
+});
+
+test("parsePostGateVerdictFallbackCliArgs rejects repo slug with dot-dot segments", () => {
+  const parseError = buildParseError("Usage: ...");
+  assert.throws(
+    () =>
+      parsePostGateVerdictFallbackCliArgs(
+        [
+          "--repo",
+          "..\//repo",
+          "--pr",
+          "17",
+          "--head-sha",
+          "abc1234",
+          "--verdict",
+          "clean",
+          "--findings-summary",
+          "ok",
+          "--next-action",
+          "go",
+        ],
+        { parseError },
+      ),
+    /--repo must be of the form owner\/name/,
+  );
+});
+
+test("parsePostGateVerdictFallbackCliArgs rejects repo slug with more than one slash", () => {
+  const parseError = buildParseError("Usage: ...");
+  assert.throws(
+    () =>
+      parsePostGateVerdictFallbackCliArgs(
+        [
+          "--repo",
+          "owner/repo/extra",
+          "--pr",
+          "17",
+          "--head-sha",
+          "abc1234",
+          "--verdict",
+          "clean",
+          "--findings-summary",
+          "ok",
+          "--next-action",
+          "go",
+        ],
+        { parseError },
+      ),
+    /--repo must be of the form owner\/name/,
+  );
+});
 
 test("parsePostGateVerdictFallbackCliArgs accepts well-formed arguments", () => {
   const parseError = buildParseError("Usage: ...");
@@ -423,7 +497,45 @@ test("runCli reads --findings-file when provided instead of inline summary", asy
         stderrSink: [],
       },
     );
-    const result = JSON.parse(stdout.join(""));
+
+test("runCli rejects --findings-file that contains only whitespace", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loop-gate-fallback-wn-1"));
+  try {
+    const findingsPath = path.join(tempDir, "findings.md");
+    await writeFile(findingsPath, "   \n\t\n  \n", "utf8");
+    const stub = await writeGhStub(tempDir, [], {});
+    const stdout = [];
+    const stderr = [];
+    await assert.rejects(
+      runCli(
+        [
+          "--repo",
+          "owner/repo",
+          "--pr",
+          "17",
+          "--head-sha",
+          "abc1234",
+          "--verdict",
+          "clean",
+          "--findings-file",
+          findingsPath,
+          "--next-action",
+          "mark ready for review",
+        ],
+        {
+          env: stub.env,
+          spawn: spawn,
+          ghCommand: "gh",
+          stdoutSink: stdout,
+          stderrSink: stderr,
+        },
+      ),
+      /empty or contains only whitespace/,
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});    const result = JSON.parse(stdout.join(""));
     assert.equal(result.ok, true);
     assert.equal(result.commentId, 102);
   } finally {

@@ -26,11 +26,26 @@
 
 import { readFile } from "node:fs/promises";
 import { spawn as defaultSpawn } from "node:child_process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
 const VERDICTS = new Set(["clean", "findings_present", "blocked"]);
-const REPO_SLUG_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+function isSafeRepoSegment(segment) {
+  return typeof segment === "string"
+    && segment.length > 0
+    && segment !== "."
+    && segment !== ".."
+    && !/[\\/]/.test(segment)
+    && !/\s/.test(segment);
+}
+
+function isValidRepoSlug(repo) {
+  if (typeof repo !== "string") return false;
+  const trimmed = repo.trim();
+  const parts = trimmed.split("/");
+  if (parts.length !== 2) return false;
+  return isSafeRepoSegment(parts[0]) && isSafeRepoSegment(parts[1]);
+}
 const SHA_PATTERN = /^[0-9a-f]{7,64}$/i;
 const MAX_BODY_LENGTH = 6000;
 
@@ -86,7 +101,7 @@ function requireOptionValue(args, flag, parseError) {
 function normalizeRepoSlug(value) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
-  return REPO_SLUG_PATTERN.test(trimmed) ? trimmed : null;
+  return isValidRepoSlug(trimmed) ? trimmed : null;
 }
 
 function normalizePrNumber(value) {
@@ -298,7 +313,7 @@ async function resolveFindingsSummary(options, { parseError }) {
     } catch (err) {
       throw parseError(`Cannot read --findings-file "${options.findingsFile}": ${err instanceof Error ? err.message : String(err)}`);
     }
-    const trimmed = content.replace(/\n+$/, "");
+    const trimmed = content.replace(/\n+$/, "").trim();
     if (trimmed.length === 0) {
       throw parseError(`--findings-file "${options.findingsFile}" is empty or contains only whitespace`);
     }
