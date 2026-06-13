@@ -80,3 +80,13 @@ test("npm package and version are pinned and non-empty", () => {
   assert.match(REPO_WIKI_NPM_PACKAGE, /^@mfittko\/repo-wiki$/);
   assert.match(REPO_WIKI_NPM_VERSION, /^\d+\.\d+\.\d+$/);
 });
+
+test("runRepoWiki returns a structured result without calling process.exit", async () => {
+  const { runRepoWiki } = await import("../../scripts/repo-wiki.mjs");
+  // Calling --help should succeed (status 0) via the npx path
+  const result = await runRepoWiki(["--help"]);
+  assert.equal(typeof result, "object");
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 0);
+  assert.ok(Array.isArray(result.invocation));
+});

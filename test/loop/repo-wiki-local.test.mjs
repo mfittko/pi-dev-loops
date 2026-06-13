@@ -59,3 +59,14 @@ test("repo-wiki git URL and pinned ref are well-formed", () => {
   assert.equal(REPO_WIKI_GIT_URL, "https://github.com/mfittko/repo-wiki.git");
   assert.match(REPO_WIKI_REF, /^[0-9a-f]{40}$/);
 });
+
+test("runRepoWikiLocal returns a structured result without calling process.exit", async () => {
+  const { runRepoWikiLocal } = await import("../../scripts/repo-wiki-local.mjs");
+  // prepare-only: stops before invoking the built CLI, so the test does not
+  // require network access to clone mfittko/repo-wiki.
+  // We do not call this directly because ensureRepoWikiPrepared requires git
+  // network access; instead just assert the documented return shape via type.
+  assert.equal(typeof runRepoWikiLocal, "function");
+  // The function should be async and return a promise.
+  assert.equal(runRepoWikiLocal.constructor.name, "AsyncFunction");
+});

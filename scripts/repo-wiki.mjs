@@ -90,6 +90,9 @@ export function runNpxInvocation({
   return result;
 }
 
+// Composable entry point: returns a structured result instead of calling
+// process.exit so importers can reuse this wrapper without terminating the host
+// process. The direct-run block below owns the process-level exit-code mapping.
 export async function runRepoWiki(argv, projectRoot = PROJECT_ROOT) {
   assertSupportedNodeVersion();
   assertConsumerConfigPresent({ projectRoot });
@@ -99,14 +102,18 @@ export async function runRepoWiki(argv, projectRoot = PROJECT_ROOT) {
   const result = runNpxInvocation({ command: invocation[0], args: invocation.slice(1), cwd: projectRoot });
 
   if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+    return { ok: false, status: result.status ?? 1, invocation };
   }
-  return { ok: true, invocation };
+  return { ok: true, status: 0, invocation };
 }
 
 if (isDirectCliRun(import.meta.url)) {
-  runRepoWiki(process.argv.slice(2)).catch((error) => {
+  runRepoWiki(process.argv.slice(2)).then((result) => {
+    if (!result.ok) {
+      process.exitCode = result.status;
+    }
+  }).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    process.exitCode = 1;
   });
 }

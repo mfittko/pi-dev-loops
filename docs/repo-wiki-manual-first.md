@@ -147,7 +147,7 @@ npm run repo-wiki:init
 
 ## Local verification performed for this slice
 
-The following commands were run successfully from a clean checkout of this repository:
+The following commands were run from a clean checkout of this repository (see the lint caveat above; lint is intentionally excluded from this verification list because of a pre-existing repo-wiki finding):
 
 ```bash
 npm run repo-wiki:scan

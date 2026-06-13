@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Offline fallback repo-wiki wrapper. Clones mfittko/repo-wiki at a pinned commit,
-// installs/builds it locally, and proxies the requested command against this repo.
+// Pinned-source fallback repo-wiki wrapper. Clones mfittko/repo-wiki at a fixed
+// commit, installs/builds it locally, and proxies the requested command against
+// this repo.
 //
 // This helper is retained for environments that prefer a pinned source checkout
-// over the published npm install path (offline reproduction, deterministic source
-// pin, controlled network access to GitHub only). It still requires git access
-// to GitHub for the initial clone/fetch step.
+// over the published npm install path (deterministic source pin, controlled
+// GitHub-only network access, offline reproduction after the initial clone).
+// It still requires git access to https://github.com/mfittko/repo-wiki.git for
+// the initial clone/fetch step.
 //
 // The primary repo-wiki entrypoint is `scripts/repo-wiki.mjs` (npm-installed).
 import { spawnSync } from "node:child_process";
@@ -118,11 +120,14 @@ export async function ensureRepoWikiPrepared(projectRoot = PROJECT_ROOT) {
   return resolveRepoWikiPaths(projectRoot);
 }
 
+// Composable entry point: returns a structured result instead of calling
+// process.exit so importers can reuse this wrapper without terminating the host
+// process. The direct-run block below owns the process-level exit-code mapping.
 export async function runRepoWikiLocal(argv, projectRoot = PROJECT_ROOT) {
   const { prepareOnly, passthroughArgs } = parseCliArgs(argv);
   const { cliPath } = await ensureRepoWikiPrepared(projectRoot);
   if (prepareOnly) {
-    return { ok: true, prepared: true, cliPath };
+    return { ok: true, status: 0, prepared: true, cliPath };
   }
 
   const result = spawnSync(process.execPath, [cliPath, ...passthroughArgs], {
@@ -134,14 +139,18 @@ export async function runRepoWikiLocal(argv, projectRoot = PROJECT_ROOT) {
     throw result.error;
   }
   if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+    return { ok: false, status: result.status ?? 1, cliPath };
   }
-  return { ok: true, prepared: true, cliPath };
+  return { ok: true, status: 0, prepared: true, cliPath };
 }
 
 if (isDirectCliRun(import.meta.url)) {
-  runRepoWikiLocal(process.argv.slice(2)).catch((error) => {
+  runRepoWikiLocal(process.argv.slice(2)).then((result) => {
+    if (!result.ok) {
+      process.exitCode = result.status;
+    }
+  }).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
