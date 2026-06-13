@@ -584,7 +584,9 @@ test("runCli preserves internal newlines and leading content from --findings-fil
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
-});test("runCli rejects --findings-file that contains only whitespace", async () => {
+});
+
+test("runCli rejects --findings-file that contains only whitespace", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loop-gate-fallback-wn-1"));
   try {
     const findingsPath = path.join(tempDir, "findings.md");
