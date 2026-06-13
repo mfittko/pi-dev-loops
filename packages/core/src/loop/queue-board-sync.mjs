@@ -134,7 +134,7 @@ async function listAllProjects(login, kind, env, runChild) {
       ? payload?.data?.organization?.projectsV2
       : payload?.data?.user?.projectsV2;
     const nodes = connection?.nodes ?? [];
-    projects.push(...nodes);
+    projects.push(...nodes.filter((n) => n != null));
     const pageInfo = connection?.pageInfo ?? {};
     if (!pageInfo.hasNextPage) break;
     if (!pageInfo.endCursor) {

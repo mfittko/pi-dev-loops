@@ -370,7 +370,10 @@ test("runQueue reorders ready entries by board Next Up order", async () => {
     const processed = [];
     const result = await runQueue(dir, "test/repo", {
       mergeAuthorized: false,
-      runEntry: async () => ({ ok: true, pr: null }),
+      runEntry: async (entry) => {
+          processed.push(entry.target);
+          return { ok: true, pr: null };
+        },
       queueBoardSyncDependencies: {
         moveQueueItem: async () => ({ ok: true, item: {} }),
         listQueueItems: async () => ({
@@ -385,7 +388,7 @@ test("runQueue reorders ready entries by board Next Up order", async () => {
     });
 
     assert.equal(result.ok, true);
-    assert.deepEqual(processed, []);
+    assert.deepEqual(processed, [3, 1, 2]);
     assert.deepEqual(
       result.results.map((r) => r.target),
       [3, 1, 2],

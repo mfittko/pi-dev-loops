@@ -140,3 +140,60 @@ test("loadBoardConfig surfaces config read errors", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("syncBoardStatus resolves boardTitle to project number and moves item", async () => {
+  const dir = await makeRepo('queue:\n  boardTitle: "BoardTitle Test Queue"\n');
+  try {
+    const moved = [];
+    const result = await syncBoardStatus(
+      "owner/repo",
+      dir,
+      42,
+      "In Progress",
+      { GH_TOKEN: "mock" },
+      {
+        moveQueueItem: async (args, _ctx) => {
+          moved.push(args);
+          return { ok: true, item: { newColumn: args.toColumn } };
+        },
+        runChild: async (_cmd, args, _env) => {
+          const queryField = args.find((a) => typeof a === "string" && a.startsWith("query="));
+          const query = queryField ? queryField.slice(6) : "";
+          if (query.includes("user(login:$login) { id }")) {
+            return { code: 0, stdout: JSON.stringify({ data: { user: { id: "U_owner" } } }), stderr: "" };
+          }
+          if (query.includes("projectsV2(first:50")) {
+            return {
+              code: 0,
+              stdout: JSON.stringify({
+                data: {
+                  user: {
+                    projectsV2: {
+                      nodes: [
+                        { id: "P_9", number: 9, title: "BoardTitle Test Queue", url: "http://example.com/9" },
+                      ],
+                      pageInfo: { hasNextPage: false, endCursor: null },
+                    },
+                  },
+                },
+              }),
+              stderr: "",
+            };
+          }
+          return { code: 1, stdout: "", stderr: "unexpected query" };
+        },
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.skipped, false);
+    assert.equal(moved.length, 1);
+    assert.deepEqual(moved[0], {
+      repo: "owner/repo",
+      project: 9,
+      item: 42,
+      toColumn: "In Progress",
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

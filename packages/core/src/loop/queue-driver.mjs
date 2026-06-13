@@ -55,9 +55,9 @@ export async function runQueue(repoRoot, repo, options = {}) {
   // Optional board-aware ordering: fetch Next Up order before processing.
   // Fail-open: if the board is unreachable, orderHint stays empty and the
   // driver falls back to the existing queue order.
-  const ordering = opts.useBoardOrdering !== false
+  const ordering = opts.useBoardOrdering !== false && !allDone(queue)
     ? await resolveNextUpOrder(repo, repoRoot, opts.env ?? process.env, opts.queueBoardSyncDependencies ?? {})
-    : { ok: true, order: [], reason: "board ordering disabled" };
+    : { ok: true, order: [], reason: "board ordering disabled or queue idle" };
   const orderHint = ordering.ok ? ordering.order : [];
 
   let autoFiledCount = 0;
