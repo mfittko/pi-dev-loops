@@ -89,6 +89,20 @@ Do not preload route packs before the resolver selects the strategy.
 **Async dispatch rule (enforced):** the resolver enforces fail-closed for GitHub-first strategies when `canonicalStateSummary.requiresAsyncDispatch` is `true` (default `required` mode). Inline invocation without `PI_SUBAGENT_RUN_ID` is rejected only for those routes. See [Startup procedure](#startup-procedure).
 
 
+## Fallback gate-comment poster
+
+When the `@pi-dev-loops/core` package is not installed in the consumer repo, the full `scripts/github/upsert-checkpoint-verdict.mjs` helper (referenced from the copilot-pr-followup skill procedure) is unavailable. To keep the PR audit trail intact in that mode, the dev-loop skill ships a small gh-only fallback poster at `scripts/dev-loop/scripts/post-gate-verdict-fallback.mjs` that renders the same visible comment format and fails closed if posting cannot succeed.
+
+Use the fallback poster only when the full helper cannot be reached:
+
+1. Detect the missing helper: try `node scripts/github/upsert-checkpoint-verdict.mjs --help` from the consumer repo. If the script is absent or imports fail, switch to the fallback path.
+2. Invoke the fallback from the installed dev-loop skill directory: `node <resolved-skill-scripts>/post-gate-verdict-fallback.mjs --repo <owner/name> --pr <number> --head-sha <sha> --verdict <clean|findings_present|blocked> (--findings-summary <text> | --findings-file <path>) --next-action <text> [--gate <draft_gate|pre_approval_gate>]`.
+3. Treat every successful fallback-posted gate comment as a one-shot create with no idempotent same-head update: if the agent reruns the gate on the same head, a duplicate comment will be created. Detect duplicates manually and update manually if needed.
+4. Treat every fallback-posted gate comment as a degraded audit-trail artifact: the visible body uses the same parser-stable shape as the full helper (gate name, head SHA, verdict, blocking severities when applicable, findings summary, next action), but the helper skips stale-head detection, gate-coordination validation, blocking-severity count enforcement, and the internal-only PR short-circuit.
+5. If the fallback helper exits non-zero, stop the gate and report the posting failure: do not mark the PR ready for review and do not proceed to merge readiness until the comment is posted.
+
+When `@pi-dev-loops/core` is available again, switch back to the full helper. The fallback poster is a degraded path, not a permanent replacement.
+
 ## Read-only info shortcut
 
 The main agent may handle info/handoff requests directly via `npx dev-loops loop info` without dispatching the async `dev-loop` subagent:

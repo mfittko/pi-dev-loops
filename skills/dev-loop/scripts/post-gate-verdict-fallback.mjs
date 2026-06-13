@@ -1,0 +1,451 @@
+#!/usr/bin/env node
+// post-gate-verdict-fallback.mjs
+//
+// Minimal gate-verdict-comment poster for the fallback path used when the
+// `@pi-dev-loops/core` package is not installed in the consumer repo and the
+// full `scripts/github/upsert-checkpoint-verdict.mjs` helper is therefore
+// unavailable. Posts the same visible comment format as the full helper, but
+// without the full helper's idempotent same-head update, stale-head detection,
+// gate-coordination validation, or internal-only PR short-circuit.
+//
+// Contract reference: docs/gate-review-comment-contract.md and
+// skills/docs/gate-review-comment-contract.md (rendered body must remain
+// parser-stable for gate name and head SHA).
+//
+// Degraded semantics (vs. the full helper):
+//   - one-shot create only; no idempotent same-head update
+//   - no stale-head detection against existing comments
+//   - no gate-coordination state validation
+//   - no blocking-severity count enforcement (caller is responsible)
+//   - no internal-only PR short-circuit
+//
+// The script always emits a stderr warning explaining that fallback mode is
+// active and the audit trail is degraded. On posting failure it fails closed
+// with a non-zero exit so the calling agent does not silently proceed past
+// the gate-comment requirement.
+
+import { readFile } from "node:fs/promises";
+import { spawn as defaultSpawn } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const GATE_NAMES = new Set(["draft_gate", "pre_approval_gate"]);
+const VERDICTS = new Set(["clean", "findings_present", "blocked"]);
+const REPO_SLUG_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const SHA_PATTERN = /^[0-9a-f]{7,64}$/i;
+const MAX_BODY_LENGTH = 6000;
+
+const USAGE = `Usage: post-gate-verdict-fallback.mjs --repo <owner/name> --pr <number> --head-sha <sha> --verdict <clean|findings_present|blocked> (--findings-summary <text> | --findings-file <path>) --next-action <text> [--gate <draft_gate|pre_approval_gate>] [--gh-command <path>]
+Minimal fallback poster for draft_gate / pre_approval_gate checkpoint verdict comments.
+Use only when @pi-dev-loops/core is not installed; otherwise prefer scripts/github/upsert-checkpoint-verdict.mjs.
+Required:
+  --repo <owner/name>
+  --pr <number>
+  --head-sha <sha>                            Full or 7+ char hex prefix
+  --verdict <clean|findings_present|blocked>
+  --findings-summary <text>                 Single-line summary
+  --findings-file <path>                    Read summary from file (preserves
+                                            newlines; takes precedence when
+                                            both are provided)
+  --next-action <text>
+Optional:
+  --gate <draft_gate|pre_approval_gate>     Defaults to draft_gate
+  --gh-command <path>                       Defaults to "gh"
+Output (stdout, JSON):
+  {
+    "ok": true,
+    "action": "created",
+    "repo": "owner/repo",
+    "pr": 17,
+    "gate": "draft_gate",
+    "headSha": "abc1234",
+    "commentId": 101,
+    "commentUrl": "https://github.com/owner/repo/pull/17#issuecomment-101",
+    "fallback": true,
+    "warning": "..."
+  }
+Exit codes:
+  0  Success
+  1  Argument error or gh failure`.trim();
+
+export function buildParseError(usage) {
+  return (message) => {
+    const error = new Error(message);
+    error.usage = usage;
+    return error;
+  };
+}
+
+function requireOptionValue(args, flag, parseError) {
+  const next = args.shift();
+  if (typeof next !== "string" || next.length === 0) {
+    throw parseError(`${flag} requires a non-empty value`);
+  }
+  return next;
+}
+
+function normalizeRepoSlug(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return REPO_SLUG_PATTERN.test(trimmed) ? trimmed : null;
+}
+
+function normalizePrNumber(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const num = Number.parseInt(trimmed, 10);
+  return Number.isInteger(num) && num > 0 ? num : null;
+}
+
+function normalizeHeadSha(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  return SHA_PATTERN.test(trimmed) ? trimmed : null;
+}
+
+function normalizeGate(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return GATE_NAMES.has(normalized) ? normalized : null;
+}
+
+function normalizeVerdict(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return VERDICTS.has(normalized) ? normalized : null;
+}
+
+function normalizeRequiredText(value, flag, parseError) {
+  if (typeof value !== "string") {
+    throw parseError(`${flag} must be a non-empty string`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw parseError(`${flag} must be a non-empty string`);
+  }
+  return trimmed;
+}
+
+function collapseWhitespace(value) {
+  return String(value).replace(/\s+/gu, " ").trim();
+}
+
+function smartTruncate(value, limit) {
+  const text = String(value);
+  if (text.length <= limit) {
+    return text;
+  }
+  const truncated = text.slice(0, limit);
+  const lastSpace = truncated.lastIndexOf(" ");
+  const breakPoint = lastSpace > Math.floor(limit * 0.7) ? lastSpace : limit;
+  const retained = truncated.slice(0, breakPoint);
+  const omitted = text.length - retained.length;
+  return `${retained}…[truncated ${omitted} chars]`;
+}
+
+export function parsePostGateVerdictFallbackCliArgs(argv, { parseError } = {}) {
+  const parseErr = parseError ?? buildParseError(USAGE);
+  const args = [...argv];
+  const options = {
+    repo: undefined,
+    pr: undefined,
+    gate: undefined,
+    headSha: undefined,
+    verdict: undefined,
+    findingsSummary: undefined,
+    findingsFile: undefined,
+    nextAction: undefined,
+    ghCommand: undefined,
+  };
+
+  while (args.length > 0) {
+    const token = args.shift();
+    if (token === "--repo") {
+      const repo = normalizeRepoSlug(requireOptionValue(args, "--repo", parseErr));
+      if (!repo) {
+        throw parseErr("--repo must be of the form owner/name (alphanumeric, dot, dash, underscore)");
+      }
+      options.repo = repo;
+      continue;
+    }
+    if (token === "--pr") {
+      const pr = normalizePrNumber(requireOptionValue(args, "--pr", parseErr));
+      if (!pr) {
+        throw parseErr("--pr must be a positive integer");
+      }
+      options.pr = pr;
+      continue;
+    }
+    if (token === "--head-sha") {
+      const headSha = normalizeHeadSha(requireOptionValue(args, "--head-sha", parseErr));
+      if (!headSha) {
+        throw parseErr("--head-sha must be a 7-64 character hexadecimal SHA");
+      }
+      options.headSha = headSha;
+      continue;
+    }
+    if (token === "--gate") {
+      const gate = normalizeGate(requireOptionValue(args, "--gate", parseErr));
+      if (!gate) {
+        throw parseErr("--gate must be one of: draft_gate, pre_approval_gate");
+      }
+      options.gate = gate;
+      continue;
+    }
+    if (token === "--verdict") {
+      const verdict = normalizeVerdict(requireOptionValue(args, "--verdict", parseErr));
+      if (!verdict) {
+        throw parseErr("--verdict must be one of: clean, findings_present, blocked");
+      }
+      options.verdict = verdict;
+      continue;
+    }
+    if (token === "--findings-summary") {
+      options.findingsSummary = normalizeRequiredText(
+        requireOptionValue(args, "--findings-summary", parseErr),
+        "--findings-summary",
+        parseErr,
+      );
+      continue;
+    }
+    if (token === "--findings-file") {
+      const rawPath = requireOptionValue(args, "--findings-file", parseErr).trim();
+      if (rawPath.length === 0) {
+        throw parseErr("--findings-file must be a non-empty path");
+      }
+      options.findingsFile = rawPath;
+      continue;
+    }
+    if (token === "--next-action") {
+      options.nextAction = normalizeRequiredText(
+        requireOptionValue(args, "--next-action", parseErr),
+        "--next-action",
+        parseErr,
+      );
+      continue;
+    }
+    if (token === "--gh-command") {
+      const cmd = requireOptionValue(args, "--gh-command", parseErr).trim();
+      if (cmd.length === 0) {
+        throw parseErr("--gh-command must be a non-empty path or executable name");
+      }
+      options.ghCommand = cmd;
+      continue;
+    }
+    throw parseErr(`Unknown argument: ${token}`);
+  }
+
+  const required = ["repo", "pr", "headSha", "verdict", "nextAction"];
+  const missing = required.filter((key) => options[key] === undefined);
+  if (options.findingsSummary === undefined && options.findingsFile === undefined) {
+    missing.push("findingsSummary|findingsFile");
+  }
+  if (missing.length > 0) {
+    throw parseErr(
+      `post-gate-verdict-fallback requires --repo, --pr, --head-sha, --verdict, --next-action, and either --findings-summary or --findings-file (missing: ${missing.join(", ")})`,
+    );
+  }
+
+  if (options.gate === undefined) {
+    options.gate = "draft_gate";
+  }
+
+  return options;
+}
+
+/**
+ * Render the visible gate-review comment body in the same parser-stable
+ * format used by `scripts/github/upsert-checkpoint-verdict.mjs`'s
+ * `renderGateReviewCommentBody`. Mirrors that helper's shape so the existing
+ * detectors can still parse gate name and head SHA out of fallback comments.
+ */
+export function renderFallbackGateReviewCommentBody({
+  gate,
+  headSha,
+  verdict,
+  findingsSummary,
+  nextAction,
+  blockCleanOnFindingSeverities,
+}) {
+  const lines = [
+    `### Gate review: \`${gate}\``,
+    "",
+    `**Reviewed head SHA:** \`${headSha}\``,
+    `**Verdict:** ${verdict}`,
+  ];
+  if (
+    (verdict === "findings_present" || verdict === "blocked")
+    && Array.isArray(blockCleanOnFindingSeverities)
+    && blockCleanOnFindingSeverities.length > 0
+  ) {
+    const sevs = blockCleanOnFindingSeverities.join(", ");
+    lines.push(`**Blocking severities:** ${sevs} (clean requires no findings matching these severities)`);
+  }
+  lines.push(
+    "",
+    `**Findings summary:** ${findingsSummary}`,
+    "",
+    `**Next action:** ${nextAction}`,
+  );
+  return smartTruncate(lines.join("\n"), MAX_BODY_LENGTH);
+}
+
+async function resolveFindingsSummary(options, { parseError }) {
+  if (typeof options.findingsFile === "string" && options.findingsFile.length > 0) {
+    let content;
+    try {
+      content = await readFile(options.findingsFile, "utf8");
+    } catch (err) {
+      throw parseError(`Cannot read --findings-file "${options.findingsFile}": ${err instanceof Error ? err.message : String(err)}`);
+    }
+    const trimmed = content.replace(/\n+$/, "");
+    if (trimmed.length === 0) {
+      throw parseError(`--findings-file "${options.findingsFile}" is empty or contains only whitespace`);
+    }
+    return trimmed;
+  }
+  if (typeof options.findingsSummary === "string" && options.findingsSummary.length > 0) {
+    // Single-line summaries only; multi-line must use --findings-file.
+    return collapseWhitespace(options.findingsSummary);
+  }
+  throw parseError("post-gate-verdict-fallback requires either --findings-summary or --findings-file");
+}
+
+export async function postGateVerdictViaGh({
+  repo,
+  pr,
+  body,
+  env = process.env,
+  ghCommand = "gh",
+  spawnImpl = defaultSpawn,
+}) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({ body });
+    const child = spawnImpl(
+      ghCommand,
+      ["api", "--method", "POST", "-H", "Content-Type: application/json", "--input", "-", `repos/${repo}/issues/${pr}/comments`],
+      { env, stdio: ["pipe", "pipe", "pipe"] },
+    );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (err) => {
+      reject(new Error(`gh api failed to spawn: ${err instanceof Error ? err.message : String(err)}`));
+    });
+    child.on("close", (code) => {
+      if (code !== 0) {
+        const detail = stderr.trim() || `exit code ${code}`;
+        reject(new Error(`gh api failed to post gate verdict comment for ${repo}#${pr}: ${detail}`));
+        return;
+      }
+      let responsePayload;
+      try {
+        responsePayload = JSON.parse(stdout);
+      } catch (err) {
+        reject(new Error(`gh api returned non-JSON response for ${repo}#${pr}: ${err instanceof Error ? err.message : String(err)}`));
+        return;
+      }
+      const commentId = Number.isInteger(responsePayload?.id) ? responsePayload.id : null;
+      const commentUrl = typeof responsePayload?.html_url === "string" && responsePayload.html_url.length > 0
+        ? responsePayload.html_url
+        : null;
+      if (commentId === null || commentUrl === null) {
+        reject(new Error(`gh api response missing comment id/html_url for ${repo}#${pr}: ${stdout.trim().slice(0, 200)}`));
+        return;
+      }
+      resolve({ commentId, commentUrl });
+    });
+    child.stdin.end(payload);
+  });
+}
+
+export function buildFallbackWarning() {
+  return [
+    "[post-gate-verdict-fallback] WARNING: fallback mode active.",
+    "The full @pi-dev-loops/core helper (scripts/github/upsert-checkpoint-verdict.mjs) was not available,",
+    "so this comment was posted via the degraded gh-only fallback poster.",
+    "Audit trail is degraded: no idempotent same-head update, no stale-head detection,",
+    "no gate-coordination validation, no internal-only PR short-circuit, no blocking-severity count enforcement.",
+    "Install @pi-dev-loops/core to restore full gate-comment semantics.",
+  ].join(" ");
+}
+
+/**
+ * Programmatic entry point. Resolves CLI args, renders the visible body,
+ * posts via gh, and emits a stderr warning explaining the degraded audit
+ * trail. Throws on argument errors or gh failures (fail-closed).
+ */
+export async function runCli(
+  argv = process.argv.slice(2),
+  {
+    env = process.env,
+    spawn = defaultSpawn,
+    ghCommand,
+    stdoutSink,
+    stderrSink,
+    parseErrorFactory,
+  } = {},
+) {
+  const parseError = parseErrorFactory ?? buildParseError(USAGE);
+  const options = parsePostGateVerdictFallbackCliArgs(argv, { parseError });
+  const findingsSummary = await resolveFindingsSummary(options, { parseError });
+  const body = renderFallbackGateReviewCommentBody({
+    gate: options.gate,
+    headSha: options.headSha,
+    verdict: options.verdict,
+    findingsSummary,
+    nextAction: options.nextAction,
+  });
+  const warning = buildFallbackWarning();
+  if (stderrSink && Array.isArray(stderrSink)) {
+    stderrSink.push(`${warning}\n`);
+  } else {
+    process.stderr.write(`${warning}\n`);
+  }
+  const { commentId, commentUrl } = await postGateVerdictViaGh({
+    repo: options.repo,
+    pr: options.pr,
+    body,
+    env,
+    ghCommand: ghCommand ?? options.ghCommand ?? "gh",
+    spawnImpl: spawn,
+  });
+  const result = {
+    ok: true,
+    action: "created",
+    repo: options.repo,
+    pr: options.pr,
+    gate: options.gate,
+    headSha: options.headSha,
+    commentId,
+    commentUrl,
+    fallback: true,
+    warning,
+  };
+  if (stdoutSink && Array.isArray(stdoutSink)) {
+    stdoutSink.push(`${JSON.stringify(result)}\n`);
+  } else {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  }
+  return 0;
+}
+
+const invokedAsScript = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (invokedAsScript) {
+  runCli().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${message}\n`);
+    if (error?.usage) {
+      process.stderr.write(`${error.usage}\n`);
+    }
+    process.exitCode = 1;
+  });
+}
