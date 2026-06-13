@@ -90,11 +90,16 @@ export function buildParseError(usage) {
 }
 
 function requireOptionValue(args, flag, parseError) {
-  const next = args.shift();
-  if (typeof next !== "string" || next.length === 0) {
+  // Peek at the next token without consuming it so we can detect a flag-like next value
+  // and fail with a clearer error rather than treating it as the current flag's value.
+  if (args.length === 0) {
     throw parseError(`${flag} requires a non-empty value`);
   }
-  return next;
+  const next = args[0];
+  if (typeof next !== "string" || next.length === 0 || /^-/u.test(next)) {
+    throw parseError(`${flag} requires a non-empty value (got ${JSON.stringify(next)})`);
+  }
+  return args.shift();
 }
 
 function normalizeRepoSlug(value) {

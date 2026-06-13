@@ -173,7 +173,30 @@ test("renderFallbackGateReviewCommentBody preserves leading content in findingsS
   assert.match(body, /\*\*Findings summary:\*\*   leading-space summary/);
 });
 
-test("parsePostGateVerdictFallbackCliArgs rejects missing required flags", () => {
+
+test("parsePostGateVerdictFallbackCliArgs reports a clear error when a flag is followed by another flag", () => {
+  const parseError = buildParseError("Usage: ...");
+  assert.throws(
+    () =>
+      parsePostGateVerdictFallbackCliArgs(
+        [
+          "--repo",
+          "--pr",
+          "17",
+          "--head-sha",
+          "abc1234",
+          "--verdict",
+          "clean",
+          "--findings-summary",
+          "ok",
+          "--next-action",
+          "go",
+        ],
+        { parseError },
+      ),
+    /--repo requires a non-empty value \(got "--pr"\)/,
+  );
+});test("parsePostGateVerdictFallbackCliArgs rejects missing required flags", () => {
   const parseError = buildParseError("Usage: ...");
   assert.throws(
     () => parsePostGateVerdictFallbackCliArgs([], { parseError }),
