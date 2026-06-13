@@ -13,3 +13,11 @@ test-results/
 worktrees/
 .pi/input-history.jsonl
 .pi/runner-coordination/
+
+# repo-wiki generated artifacts (checked-in source of truth lives in .llmwiki/config.json
+# and .llmwiki/schema.md, not in the generated wiki pages or run artifacts)
+.llmwiki/run/
+.llmwiki/wiki/
+.llmwiki/search/
+.llmwiki/bootstrap-plan.json
+.llmwiki/graph.json

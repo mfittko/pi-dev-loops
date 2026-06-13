@@ -29,7 +29,24 @@
     "test:dev-loop": "node --test --test-reporter ./test/failure-summary-reporter.mjs skills/dev-loop/scripts/dev-mode-context.test.mjs skills/dev-loop/scripts/render-template.test.mjs",
     "test:playwright:viewer": "playwright test -c playwright.inspect-run-viewer.config.mjs",
     "test:docs": "node scripts/docs/validate-links.mjs && node scripts/docs/validate-no-duplicate-rules.mjs",
-    "postinstall": "chmod +x cli/index.mjs && ln -sf ../../cli/index.mjs node_modules/.bin/dev-loops"
+    "postinstall": "chmod +x cli/index.mjs && ln -sf ../../cli/index.mjs node_modules/.bin/dev-loops",
+    "repo-wiki": "node scripts/repo-wiki.mjs",
+    "repo-wiki:bootstrap": "node scripts/repo-wiki.mjs scan --repo . && node scripts/repo-wiki.mjs plan --repo . && node scripts/repo-wiki.mjs compile --repo .",
+    "repo-wiki:scan": "node scripts/repo-wiki.mjs scan --repo .",
+    "repo-wiki:plan": "node scripts/repo-wiki.mjs plan --repo .",
+    "repo-wiki:lint-docs": "node scripts/repo-wiki.mjs lint-docs --repo .",
+    "repo-wiki:compile": "node scripts/repo-wiki.mjs compile --repo .",
+    "repo-wiki:lint": "node scripts/repo-wiki.mjs lint --repo .",
+    "repo-wiki:search": "node scripts/repo-wiki.mjs search --repo .",
+    "repo-wiki:init": "node scripts/repo-wiki.mjs init --repo .",
+    "repo-wiki:local": "node scripts/repo-wiki-local.mjs",
+    "repo-wiki:local-bootstrap": "node scripts/repo-wiki-local.mjs scan --repo . && node scripts/repo-wiki-local.mjs plan --repo . && node scripts/repo-wiki-local.mjs compile --repo .",
+    "repo-wiki:local-scan": "node scripts/repo-wiki-local.mjs scan --repo .",
+    "repo-wiki:local-plan": "node scripts/repo-wiki-local.mjs plan --repo .",
+    "repo-wiki:local-lint-docs": "node scripts/repo-wiki-local.mjs lint-docs --repo .",
+    "repo-wiki:local-compile": "node scripts/repo-wiki-local.mjs compile --repo .",
+    "repo-wiki:local-lint": "node scripts/repo-wiki-local.mjs lint --repo .",
+    "repo-wiki:prepare": "node scripts/repo-wiki-local.mjs prepare"
   },
   "bin": {
     "dev-loops": "./cli/index.mjs"

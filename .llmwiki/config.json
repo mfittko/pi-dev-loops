@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "role": "consumer-repository",
+  "source": {
+    "repo": ".",
+    "default_mode": "bootstrap",
+    "exclude": [
+      ".git/**",
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      "coverage/**",
+      ".llmwiki/run/**",
+      ".llmwiki/wiki/**",
+      ".llmwiki/search/**",
+      ".tmp/**",
+      "tmp/**",
+      "worktrees/**"
+    ],
+    "suppress_nested_repositories": true
+  },
+  "documentation": {
+    "ingest": true,
+    "authority": "secondary",
+    "include": [
+      "README.md",
+      "AGENTS.md",
+      "docs/IMPLEMENTATION_WORKFLOW.md",
+      "docs/public-dev-loop-contract.md",
+      "docs/conductor-routing-contract.md",
+      "docs/repo-wiki-manual-first.md",
+      "scripts/README.md",
+      "skills/dev-loop/SKILL.md"
+    ],
+    "exclude": [
+      "CHANGELOG.md",
+      "docs/archive/**",
+      "docs/old/**",
+      "docs/phases/**"
+    ],
+    "stale_after_days": 180,
+    "require_code_validation": true,
+    "allow_unvalidated_context": true,
+    "preserve_original_claims": false,
+    "fail_on_stale_docs": false,
+    "fail_on_conflicting_docs": false
+  },
+  "compiler": {
+    "mode": "deterministic",
+    "llm": {
+      "provider": "openai-compatible",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4.1-mini",
+      "api_key_env": "LLMWIKI_LLM_API_KEY",
+      "system_prompt": "You compile source-grounded GitHub Wiki pages.",
+      "temperature": 0.1,
+      "max_output_tokens": 4000,
+      "timeout_ms": 60000,
+      "retries": 2,
+      "validation_retries": 1
+    }
+  },
+  "wiki": {
+    "local_dir": ".llmwiki/wiki",
+    "publish_remote_env": "LLMWIKI_PUBLISH_REMOTE",
+    "publish_branch": "master",
+    "max_pages": 500,
+    "preserve_human_sections": true
+  },
+  "publish": {
+    "target": "github-wiki",
+    "wiki": {
+      "branch": "master",
+      "frontmatter": "provenance"
+    },
+    "pages": {
+      "branch": "gh-pages",
+      "path": ".",
+      "frontmatter": "preserve"
+    }
+  },
+  "lint": {
+    "fail_on_errors": true,
+    "warn_on_orphans": true,
+    "block_secret_like_content": true,
+    "broken_links": "error",
+    "stale_docs": "warning",
+    "contradicted_docs": "error",
+    "unvalidated_doc_claims": "warning"
+  }
+}
