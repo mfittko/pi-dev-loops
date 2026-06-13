@@ -94,7 +94,7 @@ async function writeGhStub(tempDir, entries = [], { defaultStdout, exitCode = 0 
       PATH: [tempDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter),
       GH_SEQUENCE_PATH: sequencePath,
       GH_COUNTER_PATH: counterPath,
-      GH_DEFAULT_STDOUT: defaultStdout ?? "",
+      ...(defaultStdout === undefined ? {} : { GH_DEFAULT_STDOUT: defaultStdout }),
       GH_EXIT_CODE: String(exitCode),
     },
     ghPath,
@@ -139,6 +139,38 @@ test("renderFallbackGateReviewCommentBody omits blocking severities line when ve
     nextAction: "mark ready for review",
   });
   assert.doesNotMatch(body, /\*\*Blocking severities:\*\*/);
+});
+test("renderFallbackGateReviewCommentBody preserves full template structure when findingsSummary is large", () => {
+  const huge = "x".repeat(5000);
+  const body = renderFallbackGateReviewCommentBody({
+    gate: "draft_gate",
+    headSha: "abc1234",
+    verdict: "clean",
+    findingsSummary: huge,
+    nextAction: "mark ready for review",
+  });
+  // Template structure stays intact so parseGateReviewCommentBody() never loses required fields.
+  assert.match(body, /### Gate review: `draft_gate`/);
+  assert.match(body, /\*\*Reviewed head SHA:\*\* `abc1234`/);
+  assert.match(body, /\*\*Verdict:\*\* clean/);
+  assert.match(body, /\*\*Next action:\*\* mark ready for review/);
+  // Findings summary is truncated per-field, not the whole body.
+  const summaryLine = body.split("\n").find((line) => line.startsWith("**Findings summary:**"));
+  assert.ok(summaryLine, "findings summary line present");
+  assert.ok(summaryLine.length < huge.length + 200, "summary line is truncated per-field");
+  assert.match(summaryLine, /\[truncated \d+ chars\]/);
+});
+
+test("renderFallbackGateReviewCommentBody preserves leading content in findingsSummary", () => {
+  // Caller-controlled summaries should not have leading whitespace stripped.
+  const body = renderFallbackGateReviewCommentBody({
+    gate: "draft_gate",
+    headSha: "abc1234",
+    verdict: "clean",
+    findingsSummary: "  leading-space summary\n  second line",
+    nextAction: "mark ready for review",
+  });
+  assert.match(body, /\*\*Findings summary:\*\*   leading-space summary/);
 });
 
 test("parsePostGateVerdictFallbackCliArgs rejects missing required flags", () => {
@@ -505,7 +537,54 @@ test("runCli reads --findings-file when provided instead of inline summary", asy
   }
 });
 
-test("runCli rejects --findings-file that contains only whitespace", async () => {
+
+test("runCli preserves internal newlines and leading content from --findings-file", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loop-gate-fallback-wn-2-"));
+  try {
+    const findingsPath = path.join(tempDir, "findings.md");
+    await writeFile(findingsPath, "  first line\n  second line\n", "utf8");
+    const stub = await writeGhStub(
+      tempDir,
+      [
+        {
+          assertArgIncludes: ["api", "repos/owner/repo/issues/17/comments"],
+          assertStdinIncludes: ["**Findings summary:**   first line\\n  second line"],
+          stdout: '{"id":104,"html_url":"https://github.com/owner/repo/pull/17#issuecomment-104"}\n',
+        },
+      ],
+      {},
+    );
+    const stdout = [];
+    await runCli(
+      [
+        "--repo",
+        "owner/repo",
+        "--pr",
+        "17",
+        "--head-sha",
+        "abc1234",
+        "--verdict",
+        "clean",
+        "--findings-file",
+        findingsPath,
+        "--next-action",
+        "mark ready for review",
+      ],
+      {
+        env: stub.env,
+        spawn: spawn,
+        ghCommand: "gh",
+        stdoutSink: stdout,
+        stderrSink: [],
+      },
+    );
+    const result = JSON.parse(stdout.join(""));
+    assert.equal(result.ok, true);
+    assert.equal(result.commentId, 104);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});test("runCli rejects --findings-file that contains only whitespace", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loop-gate-fallback-wn-1"));
   try {
     const findingsPath = path.join(tempDir, "findings.md");

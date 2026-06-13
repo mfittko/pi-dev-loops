@@ -48,8 +48,6 @@ function isValidRepoSlug(repo) {
   return isSafeRepoSegment(parts[0]) && isSafeRepoSegment(parts[1]);
 }
 const SHA_PATTERN = /^[0-9a-f]{7,64}$/i;
-const MAX_BODY_LENGTH = 6000;
-
 const USAGE = `Usage: post-gate-verdict-fallback.mjs --repo <owner/name> --pr <number> --head-sha <sha> --verdict <clean|findings_present|blocked> (--findings-summary <text> | --findings-file <path>) --next-action <text> [--gate <draft_gate|pre_approval_gate>] [--gh-command <path>]
 Minimal fallback poster for draft_gate / pre_approval_gate checkpoint verdict comments.
 Use only when @pi-dev-loops/core is not installed; otherwise prefer scripts/github/upsert-checkpoint-verdict.mjs.
@@ -269,6 +267,12 @@ export function parsePostGateVerdictFallbackCliArgs(argv, { parseError } = {}) {
   return options;
 }
 
+// Per-field cap for findingsSummary when read from --findings-file or supplied inline.
+// Mirrors the full helper's MAX_GATE_COMMENT_TEXT_LENGTH behavior so a large file cannot
+// blow out the rendered comment; the full template structure (gate name, head SHA, verdict,
+// next action) is always preserved so parseGateReviewCommentBody() stays deterministic.
+const MAX_FINDINGS_SUMMARY_LENGTH = 2000;
+
 /**
  * Render the visible gate-review comment body in the same parser-stable
  * format used by `scripts/github/upsert-checkpoint-verdict.mjs`'s
@@ -283,6 +287,7 @@ export function renderFallbackGateReviewCommentBody({
   nextAction,
   blockCleanOnFindingSeverities,
 }) {
+  const summary = smartTruncate(String(findingsSummary ?? ""), MAX_FINDINGS_SUMMARY_LENGTH);
   const lines = [
     `### Gate review: \`${gate}\``,
     "",
@@ -299,11 +304,11 @@ export function renderFallbackGateReviewCommentBody({
   }
   lines.push(
     "",
-    `**Findings summary:** ${findingsSummary}`,
+    `**Findings summary:** ${summary}`,
     "",
     `**Next action:** ${nextAction}`,
   );
-  return smartTruncate(lines.join("\n"), MAX_BODY_LENGTH);
+  return lines.join("\n");
 }
 
 async function resolveFindingsSummary(options, { parseError }) {
@@ -314,11 +319,14 @@ async function resolveFindingsSummary(options, { parseError }) {
     } catch (err) {
       throw parseError(`Cannot read --findings-file "${options.findingsFile}": ${err instanceof Error ? err.message : String(err)}`);
     }
-    const trimmed = content.replace(/\n+$/, "").trim();
-    if (trimmed.length === 0) {
+    // Match the full helper's --findings-file semantics: trim only trailing newlines so the
+    // summary preserves its internal newlines and any intentional leading content. Reject
+    // whitespace-only files via a separate .trim()-based emptiness check.
+    const trimmedTrailing = content.replace(/\n+$/, "");
+    if (trimmedTrailing.trim().length === 0) {
       throw parseError(`--findings-file "${options.findingsFile}" is empty or contains only whitespace`);
     }
-    return trimmed;
+    return trimmedTrailing;
   }
   if (typeof options.findingsSummary === "string" && options.findingsSummary.length > 0) {
     // Single-line summaries only; multi-line must use --findings-file.
