@@ -27,7 +27,7 @@ Pinned npm version used by the wrapper:
 
 ### Fallback path: pinned local helper
 
-Use this when the published npm path is not viable (air-gapped environments, pinned source requirement, offline reproduction).
+Use this when you prefer a pinned source checkout over the published npm path (deterministic source pin, controlled GitHub-only network access, offline reproduction after the initial clone). The helper still requires git access to `https://github.com/mfittko/repo-wiki.git` for the initial clone/fetch step; it is **not** suitable for fully air-gapped environments without a pre-seeded source checkout.
 
 The local helper:
 
@@ -69,7 +69,7 @@ Prepare the pinned local-helper fallback (only needed for the fallback path):
 npm run repo-wiki:prepare
 ```
 
-Run a full local bootstrap export from a clean checkout (scan + plan + lint-docs + compile + lint, no LLM key required for the deterministic compile step):
+Run a full local bootstrap export from a clean checkout (scan + plan + compile, no LLM key required for the deterministic compile step):
 
 ```bash
 npm run repo-wiki:bootstrap

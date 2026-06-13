@@ -7,6 +7,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { isDirectCliRun } from "@pi-dev-loops/core/cli/helpers";
+
 // Pinned to the latest published release at the time this slice was opened.
 // Bump deliberately when the consumer repo wants to adopt a newer release.
 export const REPO_WIKI_NPM_PACKAGE = "@mfittko/repo-wiki";
@@ -71,28 +73,38 @@ export function buildNpxInvocation({
   return ["npx", "--yes", `${packageName}@${version}`, ...passthroughArgs];
 }
 
+export function runNpxInvocation({
+  command,
+  args,
+  cwd = PROJECT_ROOT,
+  env = process.env,
+} = {}) {
+  const result = spawnSync(command, args, {
+    cwd,
+    env,
+    stdio: "inherit",
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  return result;
+}
+
 export async function runRepoWiki(argv, projectRoot = PROJECT_ROOT) {
   assertSupportedNodeVersion();
   assertConsumerConfigPresent({ projectRoot });
   const { passthroughArgs } = parseCliArgs(argv);
   const invocation = buildNpxInvocation({ passthroughArgs });
 
-  const result = spawnSync(invocation[0], invocation.slice(1), {
-    cwd: projectRoot,
-    env: process.env,
-    stdio: "inherit",
-  });
+  const result = runNpxInvocation({ command: invocation[0], args: invocation.slice(1), cwd: projectRoot });
 
-  if (result.error) {
-    throw result.error;
-  }
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
   return { ok: true, invocation };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectCliRun(import.meta.url)) {
   runRepoWiki(process.argv.slice(2)).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);

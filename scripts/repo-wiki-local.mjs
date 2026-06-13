@@ -2,14 +2,19 @@
 // Offline fallback repo-wiki wrapper. Clones mfittko/repo-wiki at a pinned commit,
 // installs/builds it locally, and proxies the requested command against this repo.
 //
-// This helper is retained for environments where the published npm install path is
-// not viable (air-gapped CI, pinned source requirement, local experimentation).
+// This helper is retained for environments that prefer a pinned source checkout
+// over the published npm install path (offline reproduction, deterministic source
+// pin, controlled network access to GitHub only). It still requires git access
+// to GitHub for the initial clone/fetch step.
+//
 // The primary repo-wiki entrypoint is `scripts/repo-wiki.mjs` (npm-installed).
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+
+import { isDirectCliRun } from "@pi-dev-loops/core/cli/helpers";
 
 export const REPO_WIKI_GIT_URL = "https://github.com/mfittko/repo-wiki.git";
 export const REPO_WIKI_REF = "d7e772e3d702a75896a6f4eec574a4e4e5bfa6dd";
@@ -54,6 +59,9 @@ function run(command, args, options = {}) {
     encoding: options.encoding ?? "utf8",
   });
 
+  if (result.error) {
+    throw result.error;
+  }
   if (result.status !== 0) {
     const printable = [command, ...args].join(" ");
     throw new Error(`Command failed (${result.status ?? "unknown"}): ${printable}`);
@@ -122,13 +130,16 @@ export async function runRepoWikiLocal(argv, projectRoot = PROJECT_ROOT) {
     env: process.env,
     stdio: "inherit",
   });
+  if (result.error) {
+    throw result.error;
+  }
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
   return { ok: true, prepared: true, cliPath };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectCliRun(import.meta.url)) {
   runRepoWikiLocal(process.argv.slice(2)).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
