@@ -352,3 +352,45 @@ test("runQueue records fallback board transition on failure", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("runQueue reorders ready entries by board Next Up order", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "queue-driver-order-"));
+  try {
+    await writeFile(path.join(dir, ".devloops"), "queue:\n  projectNumber: 3\n");
+    const queue = {
+      version: 1,
+      entries: [
+        createEntry(1, "issue"),
+        createEntry(2, "issue"),
+        createEntry(3, "issue"),
+      ],
+    };
+    await writeQueue(dir, queue);
+
+    const processed = [];
+    const result = await runQueue(dir, "test/repo", {
+      mergeAuthorized: false,
+      runEntry: async () => ({ ok: true, pr: null }),
+      queueBoardSyncDependencies: {
+        moveQueueItem: async () => ({ ok: true, item: {} }),
+        listQueueItems: async () => ({
+          ok: true,
+          items: [
+            { issueNumber: 3 },
+            { issueNumber: 1 },
+            { issueNumber: 2 },
+          ],
+        }),
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(processed, []);
+    assert.deepEqual(
+      result.results.map((r) => r.target),
+      [3, 1, 2],
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

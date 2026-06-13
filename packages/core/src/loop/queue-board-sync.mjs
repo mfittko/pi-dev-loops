@@ -154,7 +154,7 @@ function projectCacheKey(repo, boardTitle) {
   return `${repo}::${boardTitle}`;
 }
 
-async function resolveProjectNumber(repo, config, env, runChild) {
+export async function resolveProjectNumber(repo, config, env, runChild) {
   if (config.projectNumber) return config.projectNumber;
   if (config.boardTitle) {
     const key = projectCacheKey(repo, config.boardTitle);

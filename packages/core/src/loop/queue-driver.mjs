@@ -14,6 +14,7 @@ import {
   appendBugIssue,
 } from "./queue-state.mjs";
 import { syncBoardStatus, nonSuccessBoardColumn } from "./queue-board-sync.mjs";
+import { resolveNextUpOrder } from "./queue-board-ordering.mjs";
 
 export const DEFAULT_QUEUE_DRIVER_OPTIONS = {
   mergeAuthorized: false,
@@ -50,12 +51,21 @@ async function doTransition(entry, to, queue, repoRoot, opts, metadata) {
 export async function runQueue(repoRoot, repo, options = {}) {
   const opts = { ...DEFAULT_QUEUE_DRIVER_OPTIONS, ...options };
   const queue = await readQueue(repoRoot);
+
+  // Optional board-aware ordering: fetch Next Up order before processing.
+  // Fail-open: if the board is unreachable, orderHint stays empty and the
+  // driver falls back to the existing queue order.
+  const ordering = opts.useBoardOrdering !== false
+    ? await resolveNextUpOrder(repo, repoRoot, opts.env ?? process.env, opts.queueBoardSyncDependencies ?? {})
+    : { ok: true, order: [], reason: "board ordering disabled" };
+  const orderHint = ordering.ok ? ordering.order : [];
+
   let autoFiledCount = 0;
   const results = [];
   let incomplete = false;
 
   while (!allDone(queue)) {
-    const entry = nextReadyEntry(queue, opts.reDispatchMaxRetries);
+    const entry = nextReadyEntry(queue, opts.reDispatchMaxRetries, orderHint);
     if (!entry) {
       const remaining = queue.entries.filter(
         (e) => e.status !== "done" && e.status !== "blocked" && e.status !== "failed"
@@ -150,5 +160,5 @@ export async function runQueue(repoRoot, repo, options = {}) {
   }
 
   const allOk = results.every((r) => r.ok !== false) && !incomplete;
-  return { ok: allOk, results, queue };
+  return { ok: allOk, results, queue, ordering };
 }
