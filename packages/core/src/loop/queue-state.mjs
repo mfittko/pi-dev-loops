@@ -166,9 +166,27 @@ export function topologicalOrder(entries) {
   return result;
 }
 
-export function nextReadyEntry(queue, maxRetries = 1) {
-  const ordered = topologicalOrder(queue.entries);
+function applyOrderHint(ordered, orderHint) {
+  if (orderHint.length === 0) return ordered;
+  const hinted = new Set(orderHint);
+  const hintIndex = new Map(orderHint.map((target, i) => [target, i]));
+  const inHint = [];
+  const rest = [];
   for (const entry of ordered) {
+    if (hinted.has(entry.target)) {
+      inHint.push(entry);
+    } else {
+      rest.push(entry);
+    }
+  }
+  inHint.sort((a, b) => hintIndex.get(a.target) - hintIndex.get(b.target));
+  return [...inHint, ...rest];
+}
+
+export function nextReadyEntry(queue, maxRetries = 1, orderHint = []) {
+  const ordered = topologicalOrder(queue.entries);
+  const sorted = applyOrderHint(ordered, orderHint);
+  for (const entry of sorted) {
     if (entry.status === "queued" && entryDependenciesSatisfied(queue, entry)) {
       return entry;
     }

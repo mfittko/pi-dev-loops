@@ -13,11 +13,14 @@ import {
   RECOVERABLE_FAILURES,
   appendBugIssue,
 } from "./queue-state.mjs";
+import { syncBoardStatus, nonSuccessBoardColumn } from "./queue-board-sync.mjs";
+import { resolveNextUpOrder } from "./queue-board-ordering.mjs";
 
 export const DEFAULT_QUEUE_DRIVER_OPTIONS = {
   mergeAuthorized: false,
   reDispatchMaxRetries: 1,
   maxAutoFiledIssues: 10,
+  env: process.env,
 };
 
 export function classifyFailure(error) {
@@ -48,12 +51,21 @@ async function doTransition(entry, to, queue, repoRoot, opts, metadata) {
 export async function runQueue(repoRoot, repo, options = {}) {
   const opts = { ...DEFAULT_QUEUE_DRIVER_OPTIONS, ...options };
   const queue = await readQueue(repoRoot);
+
+  // Optional board-aware ordering: fetch Next Up order before processing.
+  // Fail-open: if the board is unreachable, orderHint stays empty and the
+  // driver falls back to the existing queue order.
+  const ordering = opts.useBoardOrdering !== false && !allDone(queue)
+    ? await resolveNextUpOrder(repo, repoRoot, opts.env ?? process.env, opts.queueBoardSyncDependencies ?? {})
+    : { ok: true, order: [], reason: "board ordering disabled or queue idle" };
+  const orderHint = ordering.ok ? ordering.order : [];
+
   let autoFiledCount = 0;
   const results = [];
   let incomplete = false;
 
   while (!allDone(queue)) {
-    const entry = nextReadyEntry(queue, opts.reDispatchMaxRetries);
+    const entry = nextReadyEntry(queue, opts.reDispatchMaxRetries, orderHint);
     if (!entry) {
       const remaining = queue.entries.filter(
         (e) => e.status !== "done" && e.status !== "blocked" && e.status !== "failed"
@@ -76,6 +88,23 @@ export async function runQueue(repoRoot, repo, options = {}) {
     }
     await doTransition(entry, "running", queue, repoRoot, opts);
 
+    const boardSync = [];
+    const boardSyncDeps = opts.queueBoardSyncDependencies ?? {};
+    const recordBoardSync = async (promise) => {
+      const r = await promise;
+      boardSync.push(r);
+      return r;
+    };
+
+    await recordBoardSync(syncBoardStatus(
+      repo,
+      repoRoot,
+      entry.target,
+      "In Progress",
+      opts.env ?? process.env,
+      boardSyncDeps,
+    ));
+
     try {
       const entryResult = opts.runEntry
         ? await opts.runEntry(entry, repo, opts)
@@ -88,16 +117,21 @@ export async function runQueue(repoRoot, repo, options = {}) {
           if (opts.mergeAuthorized) {
             await doTransition(entry, "merging", queue, repoRoot, opts);
             await doTransition(entry, "done", queue, repoRoot, opts, { retrospectiveWritten: true });
+            await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env, boardSyncDeps));
           }
           // else: stays at gates_passing for future merge run
         } else {
           await doTransition(entry, "done", queue, repoRoot, opts);
+          await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, "Done", opts.env ?? process.env, boardSyncDeps));
         }
-        results.push({ target: entry.target, ok: true, entry: snapshotEntry(entry) });
+        results.push({ target: entry.target, ok: true, entry: snapshotEntry(entry), boardSync });
       } else {
         throw new Error(entryResult.error || "Entry failed");
       }
     } catch (err) {
+      const fallbackColumn = nonSuccessBoardColumn(repoRoot, "Backlog");
+      await recordBoardSync(syncBoardStatus(repo, repoRoot, entry.target, fallbackColumn, opts.env ?? process.env, boardSyncDeps));
+
       const failureKind = classifyFailure(err);
       const recoverable = isRecoverable(failureKind);
 
@@ -107,7 +141,7 @@ export async function runQueue(repoRoot, repo, options = {}) {
         });
         results.push({
           target: entry.target, ok: false, recoverable: true,
-          failureKind, entry: snapshotEntry(entry),
+          failureKind, entry: snapshotEntry(entry), boardSync,
         });
       } else {
         await doTransition(entry, "blocked", queue, repoRoot, opts, {
@@ -119,12 +153,12 @@ export async function runQueue(repoRoot, repo, options = {}) {
         }
         results.push({
           target: entry.target, ok: false, recoverable: false,
-          failureKind, entry: snapshotEntry(entry),
+          failureKind, entry: snapshotEntry(entry), boardSync,
         });
       }
     }
   }
 
   const allOk = results.every((r) => r.ok !== false) && !incomplete;
-  return { ok: allOk, results, queue };
+  return { ok: allOk, results, queue, ordering };
 }

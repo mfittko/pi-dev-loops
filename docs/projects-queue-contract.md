@@ -242,6 +242,71 @@ With `--repair-rename`, the wrapper:
 
 When multiple existing columns map to the same standard column, the wrapper reports an irreconcilable conflict in `repairs.conflicts` and performs no mutation. The operator must resolve the ambiguity manually.
 
+## Lifecycle status transitions
+
+When a queue board is configured, the queue driver may optionally write bounded Status transitions back to the board. This is **opt-in** and **fail-open**: if the board is absent, misconfigured, or the GitHub API fails, the queue run continues and reports the sync problem in the result.
+
+### Transition matrix
+
+| Queue event | Default target Status | Configurable override | Notes |
+|---|---|---|---|
+| Item picked up by `runQueue` | `In Progress` | none | Fired after the entry transitions to `running`. |
+| `runEntry` succeeds | `Done` | none | Fired when the entry reaches `done`. |
+| `runEntry` throws (any failure) | `Backlog` | `queue.nonSuccessStatus` | Fired before the entry is marked `failed`/`blocked`. |
+
+### Configuration
+
+Board integration is active only when `.devloops` at repo root identifies a board:
+
+```yaml
+queue:
+  projectNumber: 5          # direct project number
+  # OR boardTitle: "Dev Loop Queue"
+  nonSuccessStatus: Backlog # optional fallback column for non-success outcomes
+```
+
+If neither `queue.projectNumber` nor `queue.boardTitle` is set, no board transitions are attempted and queue behavior is unchanged.
+
+### Result shape
+
+The queue driver returns a `boardSync` array on each entry result. Each element records one attempted transition:
+
+```json
+[
+  {
+    "ok": true,
+    "skipped": false,
+    "result": { "ok": true, "item": { "newColumn": "In Progress" } }
+  },
+  {
+    "ok": true,
+    "skipped": false,
+    "result": { "ok": true, "item": { "newColumn": "Done" } }
+  }
+]
+```
+
+The inner `result.ok` / `result.item` shape is owned by the underlying `move-queue-item.mjs` script. When the board is not configured or the sync fails in fail-open mode, `skipped` is `true` and a `reason` explains why.
+
+
+## Queue-aware pickup ordering
+
+When a queue board is configured, the queue driver can optionally sort ready entries by the `Next Up` column order before picking the next item to run. This is only a scheduling hint: it applies when the local queue has multiple ready entries and no explicit `--issue`/`--pr` target has been supplied. Explicit targets remain authoritative and are unaffected.
+
+### Behavior
+
+- If `.devloops` configures a board (`queue.projectNumber` or `queue.boardTitle`), the driver queries items in the `Next Up` column by POSITION ascending before the first dispatch.
+- Ready queue entries are ordered so that entries whose target appears earlier in `Next Up` run first. Entries not on the board keep their existing topological/insertion order and run after board-ordered entries.
+- If the board is absent, misconfigured, or the query fails, ordering falls back to the existing behavior and the run continues. The fallback is logged in the `ordering` result field.
+
+### Example
+
+```yaml
+queue:
+  projectNumber: 5
+```
+
+With local queue entries `[#1, #2, #3]` and board `Next Up` order `[#3, #1]`, the driver dispatches `#3`, then `#1`, then `#2`.
 ## Configuration shape
 
 Queue board configuration lives under `.devloops` at repo root. All keys are optional;
