@@ -8,9 +8,10 @@
 // without the full helper's idempotent same-head update, stale-head detection,
 // gate-coordination validation, or internal-only PR short-circuit.
 //
-// Contract reference: docs/gate-review-comment-contract.md and
-// skills/docs/gate-review-comment-contract.md (rendered body must remain
-// parser-stable for gate name and head SHA).
+// Contract reference: docs/gate-review-comment-contract.md (rendered body must
+// remain parser-stable for gate name and head SHA). The skill-bundled copy at
+// skills/docs/gate-review-comment-contract.md inherits from the source-repo doc
+// and is not a separate contract surface.
 //
 // Degraded semantics (vs. the full helper):
 //   - one-shot create only; no idempotent same-head update
@@ -178,7 +179,7 @@ export function parsePostGateVerdictFallbackCliArgs(argv, { parseError } = {}) {
     if (token === "--repo") {
       const repo = normalizeRepoSlug(requireOptionValue(args, "--repo", parseErr));
       if (!repo) {
-        throw parseErr("--repo must be of the form owner/name (alphanumeric, dot, dash, underscore)");
+        throw parseErr("--repo must be of the form owner/name: each segment must be non-empty, must not be \".\" or \"..\", and must not contain whitespace, slashes, or backslashes");
       }
       options.repo = repo;
       continue;

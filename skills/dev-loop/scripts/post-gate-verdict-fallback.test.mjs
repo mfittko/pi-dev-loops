@@ -497,6 +497,13 @@ test("runCli reads --findings-file when provided instead of inline summary", asy
         stderrSink: [],
       },
     );
+    const result = JSON.parse(stdout.join(""));
+    assert.equal(result.ok, true);
+    assert.equal(result.commentId, 102);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test("runCli rejects --findings-file that contains only whitespace", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "dev-loop-gate-fallback-wn-1"));
@@ -532,12 +539,6 @@ test("runCli rejects --findings-file that contains only whitespace", async () =>
       ),
       /empty or contains only whitespace/,
     );
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
-});    const result = JSON.parse(stdout.join(""));
-    assert.equal(result.ok, true);
-    assert.equal(result.commentId, 102);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
