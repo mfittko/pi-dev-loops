@@ -1,0 +1,104 @@
+name: Compile and publish repo wiki
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_wiki:
+        description: Publish compiled wiki to GitHub Wiki
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+  push:
+    branches:
+      - main
+
+jobs:
+  compile-wiki:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bootstrap wiki (scan + plan + compile)
+        env:
+          LLMWIKI_COMPILER_MODE: ${{ vars.LLMWIKI_COMPILER_MODE }}
+          LLMWIKI_LLM_PROVIDER: ${{ vars.LLMWIKI_LLM_PROVIDER }}
+          LLMWIKI_LLM_BASE_URL: ${{ vars.LLMWIKI_LLM_BASE_URL }}
+          LLMWIKI_LLM_MODEL: ${{ vars.LLMWIKI_LLM_MODEL }}
+          LLMWIKI_LLM_ARCHITECTURE_MODEL: ${{ vars.LLMWIKI_LLM_ARCHITECTURE_MODEL }}
+          LLMWIKI_LLM_TEMPERATURE: ${{ vars.LLMWIKI_LLM_TEMPERATURE }}
+          LLMWIKI_LLM_REASONING_EFFORT: ${{ vars.LLMWIKI_LLM_REASONING_EFFORT }}
+          LLMWIKI_LLM_MAX_OUTPUT_TOKENS: ${{ vars.LLMWIKI_LLM_MAX_OUTPUT_TOKENS }}
+          LLMWIKI_LLM_ARCHITECTURE_MAX_OUTPUT_TOKENS: ${{ vars.LLMWIKI_LLM_ARCHITECTURE_MAX_OUTPUT_TOKENS }}
+          LLMWIKI_LLM_TIMEOUT_MS: ${{ vars.LLMWIKI_LLM_TIMEOUT_MS }}
+          LLMWIKI_LLM_ARCHITECTURE_TIMEOUT_MS: ${{ vars.LLMWIKI_LLM_ARCHITECTURE_TIMEOUT_MS || vars.LLMWIKI_LLM_TIMEOUT_MS || '180000' }}
+          LLMWIKI_LLM_ARCHITECTURE_REASONING_EFFORT: ${{ vars.LLMWIKI_LLM_ARCHITECTURE_REASONING_EFFORT || 'low' }}
+          LLMWIKI_LLM_RETRIES: ${{ vars.LLMWIKI_LLM_RETRIES }}
+          LLMWIKI_LLM_API_KEY: ${{ secrets.LLMWIKI_LLM_API_KEY || '' }}
+          LLMWIKI_LLM_SYSTEM_PROMPT: ${{ vars.LLMWIKI_LLM_SYSTEM_PROMPT }}
+          LLMWIKI_LLM_SYSTEM_PROMPT_FILE: ${{ vars.LLMWIKI_LLM_SYSTEM_PROMPT_FILE }}
+        run: npm run repo-wiki:bootstrap
+
+      - name: Lint
+        continue-on-error: true
+        run: npm run repo-wiki:lint
+
+      - name: Upload compiled wiki
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-wiki
+          path: .llmwiki/wiki
+
+  publish-wiki:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_wiki == 'true')
+    needs: compile-wiki
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download compiled wiki
+        uses: actions/download-artifact@v4
+        with:
+          name: compiled-wiki
+          path: .llmwiki/wiki
+
+      - name: Publish wiki
+        env:
+          LLMWIKI_PUBLISH_REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git
+        run: |
+          npm run repo-wiki -- publish --target github-wiki || {
+            echo '::error::Wiki publish failed. If the Wiki feature is disabled, enable it in Settings → General → Features → Wikis.'
+            echo "Wiki publish failed — if the Wiki feature is disabled, enable it in Settings → General → Features → Wikis" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }

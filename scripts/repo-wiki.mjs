@@ -12,7 +12,7 @@ import { isDirectCliRun } from "@pi-dev-loops/core/cli/helpers";
 // Pinned to the latest published release at the time this slice was opened.
 // Bump deliberately when the consumer repo wants to adopt a newer release.
 export const REPO_WIKI_NPM_PACKAGE = "@mfittko/repo-wiki";
-export const REPO_WIKI_NPM_VERSION = "0.2.4";
+export const REPO_WIKI_NPM_VERSION = "0.2.6";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
