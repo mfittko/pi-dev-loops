@@ -98,7 +98,7 @@ jobs:
           LLMWIKI_PUBLISH_REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git
         run: |
           npm run repo-wiki -- publish --target github-wiki || {
-            echo '::error::Wiki publish failed. Wiki feature not enabled — enable in Settings → Features → Wikis.'
-            echo "Wiki feature not enabled — enable in Settings → Features → Wikis" >> "$GITHUB_STEP_SUMMARY"
+            echo '::error::Wiki publish failed. If the Wiki feature is disabled, enable it in Settings → General → Features → Wikis.'
+            echo "Wiki publish failed — if the Wiki feature is disabled, enable it in Settings → General → Features → Wikis" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           }
