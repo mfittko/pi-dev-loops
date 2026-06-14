@@ -165,6 +165,54 @@ node --test test/loop/repo-wiki.test.mjs test/loop/repo-wiki-local.test.mjs
 npm run verify
 ```
 
+## CI automation
+
+A GitHub Actions workflow at `.github/workflows/wiki.yml` compiles the repository wiki and, on pushes to `main` (or on demand via `workflow_dispatch`), publishes the compiled pages to the GitHub Wiki.
+
+### Triggers
+
+- `push` to `main` — compiles in `incremental` mode and publishes to the wiki.
+- `workflow_dispatch` — choose `bootstrap` or `incremental`, and opt in to `publish_wiki`.
+
+### Required operator setup
+
+1. **Secret** (Settings → Secrets and variables → Actions → Secrets):
+   - `LLMWIKI_LLM_API_KEY` — OpenAI-compatible API key. Required only when `LLMWIKI_COMPILER_MODE=llm`.
+2. **Variable** (Settings → Secrets and variables → Actions → Variables) — **only if LLM mode is desired**:
+   - `LLMWIKI_COMPILER_MODE=llm`
+   - Without this var, the workflow uses the deterministic baseline from `.llmwiki/config.json` and does not consume the API key.
+3. **Optional provider variables** (when LLM mode is enabled):
+   - `LLMWIKI_LLM_PROVIDER`
+   - `LLMWIKI_LLM_BASE_URL`
+   - `LLMWIKI_LLM_MODEL`
+   - `LLMWIKI_LLM_ARCHITECTURE_MODEL`
+   - `LLMWIKI_LLM_TEMPERATURE`
+   - `LLMWIKI_LLM_REASONING_EFFORT`
+   - `LLMWIKI_LLM_MAX_OUTPUT_TOKENS`
+   - `LLMWIKI_LLM_ARCHITECTURE_MAX_OUTPUT_TOKENS`
+   - `LLMWIKI_LLM_TIMEOUT_MS`
+   - `LLMWIKI_LLM_ARCHITECTURE_TIMEOUT_MS`
+   - `LLMWIKI_LLM_ARCHITECTURE_REASONING_EFFORT`
+   - `LLMWIKI_LLM_RETRIES`
+   - `LLMWIKI_LLM_SYSTEM_PROMPT`
+   - `LLMWIKI_LLM_SYSTEM_PROMPT_FILE`
+4. **Repo Wiki feature**:
+   - Confirm Wikis are enabled: Settings → General → Features → Wikis. If disabled, the `publish-wiki` job fails with a clear run summary message.
+
+### Workflow jobs
+
+- `compile-wiki` — checks out the repo, installs Node.js 24 dependencies, runs `scan`, `plan`, `compile`, and `lint`, then uploads `.llmwiki/wiki` as the `compiled-wiki` artifact.
+- `publish-wiki` — downloads the artifact and pushes it to `${{ github.repository }}.wiki.git` using `secrets.GITHUB_TOKEN`.
+
+### Local commands still work
+
+The CI workflow does not replace the local command surface. The existing npm scripts remain the recommended local path:
+
+```bash
+npm run repo-wiki:bootstrap
+npm run repo-wiki:lint
+```
+
 ## Deferred work
 
 Still deferred from this slice:
