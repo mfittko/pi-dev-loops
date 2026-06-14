@@ -3,14 +3,6 @@ name: Compile and publish repo wiki
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: Wiki compile mode
-        required: true
-        default: bootstrap
-        type: choice
-        options:
-          - bootstrap
-          - incremental
       publish_wiki:
         description: Publish compiled wiki to GitHub Wiki
         required: true
@@ -44,21 +36,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Determine mode
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "MODE=${{ github.event.inputs.mode }}" >> "$GITHUB_ENV"
-          else
-            echo "MODE=incremental" >> "$GITHUB_ENV"
-          fi
-
-      - name: Scan
-        run: node scripts/repo-wiki.mjs scan --mode "$MODE" --repo . --out .llmwiki/run
-
-      - name: Plan
-        run: node scripts/repo-wiki.mjs plan --scan .llmwiki/run --out .llmwiki/plan.json
-
-      - name: Compile
+      - name: Bootstrap wiki (scan + plan + compile)
         env:
           LLMWIKI_COMPILER_MODE: ${{ vars.LLMWIKI_COMPILER_MODE }}
           LLMWIKI_LLM_PROVIDER: ${{ vars.LLMWIKI_LLM_PROVIDER }}
@@ -76,11 +54,11 @@ jobs:
           LLMWIKI_LLM_API_KEY: ${{ secrets.LLMWIKI_LLM_API_KEY || '' }}
           LLMWIKI_LLM_SYSTEM_PROMPT: ${{ vars.LLMWIKI_LLM_SYSTEM_PROMPT }}
           LLMWIKI_LLM_SYSTEM_PROMPT_FILE: ${{ vars.LLMWIKI_LLM_SYSTEM_PROMPT_FILE }}
-        run: node scripts/repo-wiki.mjs compile --scan .llmwiki/run --plan .llmwiki/plan.json --wiki .llmwiki/wiki
+        run: npm run repo-wiki:bootstrap
 
       - name: Lint
         continue-on-error: true
-        run: node scripts/repo-wiki.mjs lint --wiki .llmwiki/wiki --scan .llmwiki/run
+        run: npm run repo-wiki:lint
 
       - name: Upload compiled wiki
         if: always()
@@ -119,7 +97,7 @@ jobs:
         env:
           LLMWIKI_PUBLISH_REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git
         run: |
-          node scripts/repo-wiki.mjs publish --target github-wiki --wiki .llmwiki/wiki || {
+          npm run repo-wiki -- publish --target github-wiki || {
             echo '::error::Wiki publish failed. Wiki feature not enabled — enable in Settings → Features → Wikis.'
             echo "Wiki feature not enabled — enable in Settings → Features → Wikis" >> "$GITHUB_STEP_SUMMARY"
             exit 1
