@@ -68,7 +68,7 @@ localImplementation:
     maxLines: 100
 
 queue:
-  boardTitle: "pi-dev-loops Queue"
+  boardTitle: "dev-loops Queue"
   maxParallel: 3
   maxAutoFiledIssues: 10
   reDispatchMaxRetries: 1
