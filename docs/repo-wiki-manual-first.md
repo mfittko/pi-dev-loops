@@ -23,7 +23,7 @@ This is the recommended path for normal local use. The npm wrapper at `scripts/r
 
 Pinned npm version used by the wrapper:
 
-- `@mfittko/repo-wiki@0.2.4`
+- `@mfittko/repo-wiki@0.2.6`
 
 ### Fallback path: pinned local helper
 
