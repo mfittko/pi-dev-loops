@@ -2,9 +2,9 @@
 
 ## Status
 
-This repository now has a **local runnable `repo-wiki` export path** that works from a clean checkout, using the published npm package as the primary install route and a pinned local-helper fallback for environments that cannot reach npm or that require a deterministic source pin.
+This repository now has a **local runnable `repo-wiki` export path** and a GitHub Actions CI workflow that compiles the wiki and publishes it to the repository's GitHub Wiki. The primary install route is the published npm package, with a pinned local-helper fallback for environments that cannot reach npm or require a deterministic source pin.
 
-This slice is intentionally limited to local export. It does **not** claim that `repo-wiki` is ready for GitHub Wiki publication, scheduled sync, or CI automation from this repository yet.
+Scheduled sync remains out of scope.
 
 Source files in this repository remain authoritative. Generated wiki output is a navigation aid, not the source of truth.
 
@@ -171,8 +171,8 @@ A GitHub Actions workflow at `.github/workflows/wiki.yml` compiles the repositor
 
 ### Triggers
 
-- `push` to `main` — compiles in `incremental` mode and publishes to the wiki.
-- `workflow_dispatch` — choose `bootstrap` or `incremental`, and opt in to `publish_wiki`.
+- `push` to `main` — runs the `compile-wiki` job and, because it is on `main`, the `publish-wiki` job.
+- `workflow_dispatch` — optionally opt in to `publish_wiki` after `compile-wiki` succeeds. The compile job always runs `npm run repo-wiki:bootstrap` (scan + plan + compile).
 
 ### Required operator setup
 
@@ -201,8 +201,8 @@ A GitHub Actions workflow at `.github/workflows/wiki.yml` compiles the repositor
 
 ### Workflow jobs
 
-- `compile-wiki` — checks out the repo, installs Node.js 24 dependencies, runs `scan`, `plan`, `compile`, and `lint`, then uploads `.llmwiki/wiki` as the `compiled-wiki` artifact.
-- `publish-wiki` — downloads the artifact and pushes it to `${{ github.repository }}.wiki.git` using `secrets.GITHUB_TOKEN`.
+- `compile-wiki` — checks out the repo, installs Node.js 24 dependencies, runs `npm run repo-wiki:bootstrap` (chained scan + plan + compile) and `npm run repo-wiki:lint`, then uploads `.llmwiki/wiki` as the `compiled-wiki` artifact.
+- `publish-wiki` — downloads the artifact and pushes it to `${{ github.repository }}.wiki.git` using `secrets.GITHUB_TOKEN` via `npm run repo-wiki -- publish --target github-wiki`.
 
 ### Local commands still work
 
@@ -217,8 +217,6 @@ npm run repo-wiki:lint
 
 Still deferred from this slice:
 
-- GitHub Wiki publish from this repository
-- CI automation for wiki export/publish
 - scheduled sync
 
-Those should come back as separate follow-up work once the local manual-first path is stable enough and the publish target/packaging story is intentionally chosen. The `repo-wiki publish` subcommand exists upstream but is intentionally not wired into a script by this slice.
+GitHub Wiki publishing and CI automation are now wired via `.github/workflows/wiki.yml`. Further enhancements (scheduled sync, additional modes, Pages publishing) should come back as separate follow-up work.
