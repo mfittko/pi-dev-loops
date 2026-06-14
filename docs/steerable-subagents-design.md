@@ -20,7 +20,7 @@ The runtime surface that drops those messages is in `pi-intercom`:
 
 ```ts
 // ~/.pi/agent/npm/packages/pi-intercom/index.ts
-// Lines 669–685 (verified in the current checkout of pi-intercom source).
+// Lines 669–685 (verify against your local pi-intercom checkout; line numbers drift over time).
 if (!activeContext.isIdle()) {
   if (!activeContext.hasUI) {
     // auto-reply that the session is non-interactive, then drop the message.
@@ -101,7 +101,7 @@ The shape below is a conversation starter for `pi-subagents` and `pi-intercom`.
 subagent({
   // existing fields ...
   steerable: boolean;            // default false (opt-in)
-  operationClass: "read" | "pre_flight" | "edit" | "atomic_post" | "atomic_lock";
+  operationClass: "read" | "pre_flight" | "edit" | "atomic_post" | "atomic_lock" | "atomic_merge";
 });
 ```
 
@@ -197,8 +197,7 @@ so upstream does not need to know about `pi-dev-loops` gates.
 
 ### Message arrives between checkpoints
 
-Queue it. `flushIdleMessages` already retries on `INBOUND_IDLE_RETRY_MS` until
-`ctx.isIdle()` is true.
+Queue it. `flushIdleMessages` already retries on `INBOUND_IDLE_RETRY_MS` until the session becomes idle.
 
 ### Message conflicts with an in-flight mutation
 
