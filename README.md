@@ -1,4 +1,4 @@
-# pi-dev-loops
+# dev-loops
 
 Turn GitHub issues into merged PRs with zero manual steps between issue and approval.
 
@@ -37,7 +37,7 @@ A deterministic container image with all required tooling for dev-loop operation
 ### Build
 
 ```bash
-docker build -t pi-dev-loops .
+docker build -t dev-loops .
 ```
 
 ### Environment variables
@@ -52,7 +52,7 @@ docker build -t pi-dev-loops .
 Verify the image works with a minimal dev-loop info call:
 
 ```bash
-docker run --rm -e GH_TOKEN="$GH_TOKEN" pi-dev-loops dev-loops loop info --repo mfittko/pi-dev-loops --issue 1
+docker run --rm -e GH_TOKEN="$GH_TOKEN" dev-loops dev-loops loop info --repo mfittko/pi-dev-loops --issue 1
 ```
 
 ### Toolchain verification
@@ -60,11 +60,11 @@ docker run --rm -e GH_TOKEN="$GH_TOKEN" pi-dev-loops dev-loops loop info --repo 
 Check that all required tools are reachable:
 
 ```bash
-docker run --rm pi-dev-loops node --version
-docker run --rm pi-dev-loops pi --version
-docker run --rm pi-dev-loops dev-loops --version
-docker run --rm pi-dev-loops gh --version
-docker run --rm pi-dev-loops git --version
+docker run --rm dev-loops node --version
+docker run --rm dev-loops pi --version
+docker run --rm dev-loops dev-loops --version
+docker run --rm dev-loops gh --version
+docker run --rm dev-loops git --version
 ```
 
 ### Repeatable builds
@@ -79,7 +79,7 @@ The Dockerfile pins exact versions for Node.js (via base image), pi CLI, pi exte
 docker run -it --rm \
   -e GH_TOKEN="$GH_TOKEN" \
   -v "$HOME/.pi:/home/node/.pi" \
-  pi-dev-loops pi
+  dev-loops pi
 ```
 
 Shares sessions, models, settings. Container writes session logs to host `~/.pi`.
@@ -90,7 +90,7 @@ Shares sessions, models, settings. Container writes session logs to host `~/.pi`
 docker run -it --rm \
   -e GH_TOKEN="$GH_TOKEN" \
   -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-  pi-dev-loops pi
+  dev-loops pi
 ```
 
 Ephemeral `~/.pi` inside container. Provider auth via env vars.
@@ -105,7 +105,7 @@ docker run -it --rm \
   -e GH_TOKEN="$GH_TOKEN" \
   -v "$HOME/.pi:/home/node/.pi" \
   -v /tmp/run:/workspace \
-  pi-dev-loops pi
+  dev-loops pi
 ```
 
 Mounts live repo worktree over baked-in `/workspace`. One isolated Pi session per container.

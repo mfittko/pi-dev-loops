@@ -70,7 +70,7 @@ export default function (pi: ExtensionAPI, runtimeOverrides: ExtensionRuntimeOve
   });
 
   pi.registerCommand('dev-loops', {
-    description: 'Manage pi-dev-loops readiness and inspect-run local UI lifecycle: /dev-loops [help|status|doctor|gates|hide|inspect ...]',
+    description: 'Manage dev-loops readiness and inspect-run local UI lifecycle: /dev-loops [help|status|doctor|gates|hide|inspect ...]',
     handler: async (args, ctx) => {
       const result = await executeDevLoopsCommand({
         input: args,
