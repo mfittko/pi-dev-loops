@@ -447,6 +447,10 @@
       "enforcementNote": "Role dispatch is orchestration behavior, not mechanically checkable."
     },
     {
+      "id": "LOCAL-DEV-SELF-CHECK-NO-FANOUT",
+      "enforcement": "doc"
+    },
+    {
       "id": "LOCAL-FAILURE-TRIAGE-ORDER"
     },
     {
