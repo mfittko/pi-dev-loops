@@ -73,7 +73,7 @@ test("local-implementation developer loop prescribes no pre-PR gate fan-out (LOC
     /pull-request lifecycle activities only/i,
     /`draft_gate`/,
     /`pre_approval_gate`/,
-    /only two fan-out sites/i,
+    /only two lifecycle-gate fan-out sites/i,
     /conductor-owned/i,
   ], SKILL_PATH);
 
