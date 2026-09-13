@@ -153,8 +153,7 @@ test("docs agent supports docs-correctness review posture without becoming a pub
 });
 
 test("review workflow resolves pre-approval gate angles from config with explicit fallback requirement", async () => {
-  const [localImplementationSkill, copilotFollowupSkill, subLoopContract, reviewAgent, reviewTemplate, reviewerGraph] = await Promise.all([
-    readRepo("skills/local-implementation/SKILL.md"),
+  const [copilotFollowupSkill, subLoopContract, reviewAgent, reviewTemplate, reviewerGraph] = await Promise.all([
     readRepo("skills/copilot-pr-followup/SKILL.md"),
     readRepo("skills/docs/gate-review-sub-loop-contract.md"),
     readRepo("agents/review.agent.md"),
@@ -162,8 +161,11 @@ test("review workflow resolves pre-approval gate angles from config with explici
     readRepo("skills/docs/reviewer-loop-state-graph.md"),
   ]);
 
+  // The pre-approval gate angle fan-out is a pull-request lifecycle activity,
+  // not a developer-phase one. local-implementation deliberately does NOT
+  // prescribe it (per LOCAL-DEV-SELF-CHECK-NO-FANOUT); the fan-out sites are
+  // the copilot-pr-followup / review surfaces below.
   const gateDocuments = [
-    ["skills/local-implementation/SKILL.md", localImplementationSkill, /default pre-approval gate[\s\S]{0,200}resolveGateAngles/i],
     ["skills/copilot-pr-followup/SKILL.md", copilotFollowupSkill, /default pre-approval gate/i],
     ["agents/review.agent.md", reviewAgent, /default pre-approval gate contract:[\s\S]{0,200}resolveGateAngles/i],
     ["skills/dev-loop/templates/review.md", reviewTemplate, /Default pre-approval gate/i],
@@ -185,7 +187,6 @@ test("review workflow resolves pre-approval gate angles from config with explici
   assert.match(reviewTemplate, /resolveGateAngles/i);
   assert.match(copilotFollowupSkill, /resolveGateAngles/i);
   assert.match(reviewTemplate, /configured angle checks/i);
-  assert.match(localImplementationSkill, /GATE-EXEC-FANOUT-SEQUENTIAL-FALLBACK/);
   assert.match(copilotFollowupSkill, /gate-review-sub-loop-contract\.md.*pre-approval/i);
   assertRuleOwned("GATE-EXEC-BUILD-ONCE-SEED", "skills/docs/gate-review-sub-loop-contract.md");
   assertRuleOwned("GATE-EXEC-FANOUT-SEQUENTIAL-FALLBACK", "skills/docs/gate-review-sub-loop-contract.md");

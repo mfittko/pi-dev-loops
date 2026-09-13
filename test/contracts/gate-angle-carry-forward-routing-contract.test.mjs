@@ -160,13 +160,19 @@ test("copilot-pr-followup SKILL defers retry scoping to Phase 1.2 at both retry 
   assert.ok(matches.length >= 2, `${SKILL} must defer both retry entry points to Phase 1.2 (found ${matches.length})`);
 });
 
-test("local-implementation SKILL defers retry scoping to GATE-EXEC-ANGLE-CARRY-FORWARD", async () => {
+test("local-implementation developer loop prescribes no gate angle retry scoping", async () => {
+  // The developer implementation loop runs one self-check, not a gate angle
+  // fan-out, so it no longer carries the fan-out retry rule. Angle carry-forward
+  // (GATE-EXEC-ANGLE-CARRY-FORWARD) is a pull-request gate concern owned by the
+  // gate-executing surfaces, per LOCAL-DEV-SELF-CHECK-NO-FANOUT.
   const file = "skills/local-implementation/SKILL.md";
   const skill = await readRepo(file);
-  assert.match(
-    skill,
-    /GATE-EXEC-ANGLE-CARRY-FORWARD[^.\n]*decides what re-runs/,
-    `${file} must defer retry scoping to GATE-EXEC-ANGLE-CARRY-FORWARD`,
+  const loopMatch = skill.match(/## Implementation loop for the phase[\s\S]*?(?=\n## )/);
+  assert.ok(loopMatch, `${file} must contain an 'Implementation loop for the phase' section`);
+  assert.doesNotMatch(
+    loopMatch[0],
+    /GATE-EXEC-ANGLE-CARRY-FORWARD/,
+    `${file} developer loop must not prescribe gate angle retry scoping`,
   );
 });
 

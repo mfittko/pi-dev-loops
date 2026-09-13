@@ -41,3 +41,54 @@ test("local-implementation skill owns workflow handoff template delegation", asy
   assert.match(content, /`local-implementation` skill uses this template when delegating/i);
   assert.doesNotMatch(content, /coordinator must use this template/i);
 });
+
+// Cross-harness regression guard: the developer implementation loop must
+// perform one self-check and never a pre-pull-request review fan-out. This is
+// shared harness-agnostic workflow text (no per-harness branch), so Pi, Claude,
+// and Codex read the same sequence — satisfying cross-harness-regression-contract.md.
+test("local-implementation developer loop prescribes no pre-PR gate fan-out (LOCAL-DEV-SELF-CHECK-NO-FANOUT)", async () => {
+  assertRulePresent("LOCAL-DEV-SELF-CHECK-NO-FANOUT");
+  assertRuleOwned("LOCAL-DEV-SELF-CHECK-NO-FANOUT", SKILL_PATH);
+
+  const content = await readRepo(SKILL_PATH);
+  const loopMatch = content.match(/## Implementation loop for the phase[\s\S]*?(?=\n## )/);
+  assert.ok(loopMatch, "SKILL must contain an 'Implementation loop for the phase' section");
+  const loop = loopMatch[0];
+
+  // The developer step is a single self-check, never a reviewer fan-out.
+  assertMatchesAll(loop, [
+    /exactly one developer self-check/i,
+    /MUST NOT dispatch review subagents/i,
+  ], SKILL_PATH);
+
+  // The removed pre-pull-request gate step is gone, not reworded: none of the
+  // step-5 fan-out instructions survive as a developer-loop directive.
+  assert.doesNotMatch(loop, /Run the default pre-approval gate as a full review/i);
+  assert.doesNotMatch(loop, /resolve review angles from config/i);
+  assert.doesNotMatch(loop, /run the resolved angle-focused passes/i);
+  assert.doesNotMatch(loop, /resolveReviewerRole/);
+
+  // Angle fan-out is bound to the two pull-request lifecycle gate boundaries.
+  assertMatchesAll(loop, [
+    /pull-request lifecycle activities only/i,
+    /`draft_gate`/,
+    /`pre_approval_gate`/,
+    /only two fan-out sites/i,
+    /conductor-owned/i,
+  ], SKILL_PATH);
+
+  // A local artifact is never lifecycle-gate evidence, and an incomplete review
+  // is never clean.
+  assert.match(loop, /NOT lifecycle-gate evidence/i);
+  assert.match(loop, /gate-review-comment-contract\.md/i);
+  assert.match(loop, /did not complete MUST NOT be summarized as clean/i);
+});
+
+test("local-implementation plan review stays a single artifact, not a reviewer fan-out", async () => {
+  const content = await readRepo(SKILL_PATH);
+  const sectionMatch = content.match(/### 5\. Review the merged phase plan adversarially[\s\S]*?(?=\n### |\n## )/);
+  assert.ok(sectionMatch, "SKILL must contain the adversarial plan-review step");
+  const section = sectionMatch[0];
+  assert.match(section, /one local planning artifact/i);
+  assert.match(section, /not a multi-reviewer fan-out/i);
+});
