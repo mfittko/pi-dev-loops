@@ -564,7 +564,7 @@ See [Stop Conditions](../docs/stop-conditions.md). Local-specific stops: phase c
 
 - Implement on a dedicated local working branch, never directly on `main`, switching to it before the first mutating step; if the repo is unborn (no commits yet), still create the working branch first and make the initial atomic commits there.
 - Use atomic local commits to log progress, but only for coherent reviewable slices — [Commit policy](#commit-policy) below governs commit timing/authorization.
-- Before merging, run a full parallel review / fix loop and resolve accepted findings on the same branch; rerun validation after review-driven fixes.
+- Before finalizing, complete the single developer self-check against the merged plan (implementation loop step 4); the developer loop never runs a multi-reviewer angle fan-out. For tracker-backed sessions, multi-reviewer angle fan-out and fan-in run only on the pull request at the `draft_gate` and `pre_approval_gate`; rerun validation after any review-driven fixes on the branch.
 - A phase is not operationally closed until its branch state is captured in commit history and the reviewed branch has been finalized according to session type (merged into local `main` for phase-doc-backed sessions; merged via GitHub PR for tracker-backed sessions); when authorization for that finalization is still pending, record the phase as `awaiting-finalization` and describe the exact missing step.
 - For tracker-backed sessions, the handoff path is always: push the working branch → open a PR → merge via GitHub; never merge the working branch into local `main`. PR creation follows [LOCAL-PR-CREATE-CANONICAL](#tracker-backed-local-implementation) above; a new PR must exist in draft before `gh pr ready` is eligible.
 - For phase-doc-backed sessions, merge the fully reviewed, locally validated branch back into local `main` when authorized.
@@ -579,4 +579,4 @@ See [Stop Conditions](../docs/stop-conditions.md). Local-specific stops: phase c
 
 ## Anti-patterns
 
-See [Anti-patterns](../docs/anti-patterns.md). Local-specific: don't assume optional plan docs exist, don't guess through missing plan details, don't skip fan-out/fan-in, don't skip `tmp/` artifacts, don't use subagents without readable summaries.
+See [Anti-patterns](../docs/anti-patterns.md). Local-specific: don't assume optional plan docs exist, don't guess through missing plan details, don't turn the developer self-check into a pre-pull-request angle fan-out, don't skip the pull-request gate fan-out/fan-in (`draft_gate`/`pre_approval_gate`) for tracker-backed sessions, don't skip `tmp/` artifacts, don't use subagents without readable summaries.
